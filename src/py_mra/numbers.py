@@ -5,14 +5,19 @@ explicit opt-in path for callers who want numbers expanded into words before
 encoding. :func:`numbers_to_words` scans a string and replaces each numeric run
 with words, choosing a style based on context:
 
-* currency  -- ``"$19.99"`` -> ``"nineteen dollars and ninety nine cents"``
-* phone     -- ``"555-1234"`` -> ``"five five five one two three four"``
-* decimal   -- ``"3.14"`` -> ``"three point one four"``
-* integer   -- ``"66"`` -> ``"sixty six"`` (cardinal)
+* currency      -- ``"$19.99"`` -> ``"nineteen dollars and ninety nine cents"``
+* unit/apt/box  -- ``"Apt 4B"`` -> ``"Apt four B"`` (label kept, id read out)
+* phone         -- ``"555-1234"`` -> ``"five five five one two three four"``
+* zip code      -- ``"90210-1234"`` -> ``"nine zero two one zero one two ..."``
+* decimal       -- ``"3.14"`` -> ``"three point one four"``
+* integer       -- ``"66"`` -> ``"sixty six"`` (cardinal)
 
-Output is space-separated with no hyphens, so it flows cleanly into the encoder.
-The phone and currency heuristics are intentionally simple and documented here
-so they can be tuned for a given dataset.
+Style by context: *quantities* (bare integers such as a house number) are read
+as cardinals, while *identifiers* (zip codes, apartment/unit/suite/box numbers)
+are read digit by digit, since they are labels rather than amounts and are often
+alphanumeric (``"4B"``). Output is space-separated with no hyphens, so it flows
+cleanly into the encoder. The phone, zip and unit heuristics are intentionally
+simple and documented here so they can be tuned for a given dataset.
 """
 
 import re
@@ -86,6 +91,20 @@ def _digits_to_words(digits):
     return " ".join(_DIGIT_WORDS[d] for d in digits)
 
 
+def _spell_identifier(ident):
+    """Read an alphanumeric identifier: digits spoken singly, letters kept.
+
+    ``"4B"`` -> ``"four B"``, ``"200"`` -> ``"two zero zero"``.
+    """
+    tokens = []
+    for part in re.findall(r"\d+|[A-Za-z]+", ident):
+        if part.isdigit():
+            tokens.extend(_DIGIT_WORDS[d] for d in part)
+        else:
+            tokens.append(part)
+    return " ".join(tokens)
+
+
 def _pad(match, words):
     """Add a separating space when the numeric run abuts a letter (``221B``)."""
     s = match.string
@@ -118,6 +137,15 @@ def _currency_repl(match):
     return _pad(match, words)
 
 
+def _unit_repl(match):
+    desig = match.group("desig").rstrip()
+    return _pad(match, "%s %s" % (desig, _spell_identifier(match.group("id"))))
+
+
+def _zip_repl(match):
+    return _pad(match, _digits_to_words(match.group(0).replace("-", "")))
+
+
 def _phone_repl(match):
     text = match.group(0)
     digits = re.sub(r"\D", "", text)
@@ -144,6 +172,20 @@ _CURRENCY_RE = re.compile(
     r"(?P<sym>[$£€])\s?(?P<major>\d{1,3}(?:,\d{3})*|\d+)(?:\.(?P<minor>\d{1,2}))?"
 )
 
+# Secondary-address designators (apartment, unit, suite, box, "#", ...) followed
+# by an identifier that contains at least one digit. The identifier is read out
+# digit by digit so alphanumerics like "4B" decompose cleanly.
+_UNIT_RE = re.compile(
+    r"(?P<desig>#|\b(?:apartment|apt|unit|suite|ste|building|bldg|floor|fl|room|"
+    r"rm|lot|space|spc|dept|trailer|trlr|box|number|no)\b\.?)\s*"
+    r"(?P<id>[0-9A-Za-z]*[0-9][0-9A-Za-z]*)",
+    re.IGNORECASE,
+)
+
+# US zip code: an isolated run of exactly five digits, optionally + four.
+# Read digit by digit, as zip codes are always spoken.
+_ZIP_RE = re.compile(r"(?<!\d)\d{5}(?:-\d{4})?(?!\d)")
+
 # Phone numbers, detected by shape rather than digit count so that genuine
 # large integers (e.g. 1000000) are still read as cardinals.
 _PHONE_RE = re.compile(
@@ -169,7 +211,9 @@ def numbers_to_words(text):
     digits and is therefore safe to pass to :func:`py_mra.match_rating_codex`.
     """
     text = _CURRENCY_RE.sub(_currency_repl, text)
+    text = _UNIT_RE.sub(_unit_repl, text)
     text = _PHONE_RE.sub(_phone_repl, text)
+    text = _ZIP_RE.sub(_zip_repl, text)
     text = _DECIMAL_RE.sub(_decimal_repl, text)
     text = _INTEGER_RE.sub(_integer_repl, text)
     return text

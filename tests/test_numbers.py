@@ -71,3 +71,51 @@ def test_letters_preserved_around_numbers():
 
 def test_no_numbers_passthrough():
     assert numbers_to_words("Hello World") == "Hello World"
+
+
+@pytest.mark.parametrize(
+    "address, expected",
+    [
+        ("90210", "nine zero two one zero"),
+        ("90210-1234", "nine zero two one zero one two three four"),
+        ("Springfield IL 62704", "Springfield IL six two seven zero four"),
+    ],
+)
+def test_zip_codes_digit_by_digit(address, expected):
+    assert numbers_to_words(address) == expected
+
+
+@pytest.mark.parametrize(
+    "field, expected",
+    [
+        ("Apt 4B", "Apt four B"),
+        ("Apartment 12", "Apartment one two"),
+        ("Unit 200", "Unit two zero zero"),
+        ("Suite 100", "Suite one zero zero"),
+        ("Ste 5", "Ste five"),
+        ("Floor 3", "Floor three"),
+        ("Bldg 7C", "Bldg seven C"),
+        ("PO Box 88", "PO Box eight eight"),
+        ("# 3", "# three"),
+    ],
+)
+def test_unit_designators_digit_by_digit(field, expected):
+    assert numbers_to_words(field) == expected
+
+
+def test_house_number_stays_cardinal():
+    # An unlabeled leading number is a quantity, read as a cardinal.
+    assert numbers_to_words("221 Baker Street") == "two hundred twenty one Baker Street"
+
+
+def test_full_address_line():
+    addr = "221B Baker St Apt 5, London SW1A 1AA"
+    out = numbers_to_words(addr)
+    assert "two hundred twenty one B" in out  # house number (cardinal) + unit letter
+    assert "Apt five" in out  # apartment identifier digit-by-digit
+    assert not any(ch.isdigit() for ch in out)  # safe to encode
+
+
+def test_designator_requires_a_number():
+    # "no" without a following number must not be treated as a designator.
+    assert numbers_to_words("no thanks") == "no thanks"
