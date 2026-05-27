@@ -1,0 +1,22 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "py-mra"
+version = "0.1.0"
+description = "Python implementation of the Match Rating Approach phonetic algorithm."
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "CC-BY-NC-SA-4.0" }
+keywords = ["phonetic", "match-rating-approach", "mra", "name-matching", "fuzzy"]
+dependencies = []
+
+[project.optional-dependencies]
+test = ["pytest>=7"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/py_mra"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
