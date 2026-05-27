@@ -10,7 +10,7 @@ from py_mra import (
 
 
 @pytest.mark.parametrize(
-    "n, expected",
+    "number, expected",
     [
         (0, "zero"),
         (7, "seven"),
@@ -24,8 +24,8 @@ from py_mra import (
         (1234567, "one million two hundred thirty four thousand five hundred sixty seven"),
     ],
 )
-def test_int_to_cardinal(n, expected):
-    assert int_to_cardinal(n) == expected
+def test_int_to_cardinal(number, expected):
+    assert int_to_cardinal(number) == expected
 
 
 def test_plain_integer_is_cardinal():

@@ -37,20 +37,20 @@ def _rating_from_codices(codex1, codex2):
     if abs(len(codex1) - len(codex2)) >= 3:
         return None
 
-    res1, res2 = [], []
-    for c1, c2 in zip_longest(codex1, codex2):
-        if c1 != c2:
-            if c1:
-                res1.append(c1)
-            if c2:
-                res2.append(c2)
+    remaining1, remaining2 = [], []
+    for char1, char2 in zip_longest(codex1, codex2):
+        if char1 != char2:
+            if char1:
+                remaining1.append(char1)
+            if char2:
+                remaining2.append(char2)
 
     unmatched1 = unmatched2 = 0
-    for c1, c2 in zip_longest(reversed(res1), reversed(res2)):
-        if c1 != c2:
-            if c1:
+    for char1, char2 in zip_longest(reversed(remaining1), reversed(remaining2)):
+        if char1 != char2:
+            if char1:
                 unmatched1 += 1
-            if c2:
+            if char2:
                 unmatched2 += 1
 
     return 6 - max(unmatched1, unmatched2)

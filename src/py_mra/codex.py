@@ -19,7 +19,9 @@ def _to_ascii(name):
         characters dropped, e.g. ``"José"`` -> ``"Jose"``.
     """
     decomposed = unicodedata.normalize("NFKD", name)
-    stripped = "".join(c for c in decomposed if not unicodedata.combining(c))
+    stripped = "".join(
+        char for char in decomposed if not unicodedata.combining(char)
+    )
     return stripped.encode("ascii", "ignore").decode("ascii")
 
 
@@ -56,7 +58,7 @@ def match_rating_codex(name):
     if not isinstance(name, str):
         raise TypeError("name must be a str, got %r" % type(name).__name__)
 
-    if any(unicodedata.category(c).startswith("N") for c in name):
+    if any(unicodedata.category(char).startswith("N") for char in name):
         raise NumericInputError(
             "encoder received numeric characters in %r; convert them with "
             "numbers_to_words() first" % name
@@ -64,24 +66,27 @@ def match_rating_codex(name):
 
     ascii_name = _to_ascii(name)
 
-    odd = sorted({c for c in ascii_name if not c.isalpha() and not c.isspace()})
-    if odd:
+    stripped_specials = sorted({
+        char for char in ascii_name
+        if not char.isalpha() and not char.isspace()
+    })
+    if stripped_specials:
         warnings.warn(
             "stripped non-letter character(s) %s from %r"
-            % ("".join(odd), name),
+            % ("".join(stripped_specials), name),
             SpecialCharacterWarning,
             stacklevel=2,
         )
 
-    letters = [c for c in ascii_name.upper() if c.isalpha()]
+    letters = [char for char in ascii_name.upper() if char.isalpha()]
 
     codex = []
-    for i, c in enumerate(letters):
-        if i != 0 and c in _VOWELS:
+    for position, letter in enumerate(letters):
+        if position != 0 and letter in _VOWELS:
             continue
-        if codex and codex[-1] == c:
+        if codex and codex[-1] == letter:
             continue
-        codex.append(c)
+        codex.append(letter)
 
     if len(codex) > 6:
         codex = codex[:3] + codex[-3:]

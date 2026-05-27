@@ -52,7 +52,7 @@ _TENS = [
 ]
 _SCALES = ["", "thousand", "million", "billion", "trillion", "quadrillion", "quintillion"]
 
-_DIGIT_WORDS = {str(i): _ONES[i] for i in range(10)}
+_DIGIT_WORDS = {str(digit): _ONES[digit] for digit in range(10)}
 
 # Currency symbol -> (major unit singular/plural, minor unit singular/plural).
 _CURRENCY = {
@@ -62,69 +62,69 @@ _CURRENCY = {
 }
 
 
-def _words_under_1000(n):
+def _words_under_1000(number):
     """Return the word tokens for an integer in 1..999.
 
     Args:
-        n: An integer strictly between 0 and 1000.
+        number: An integer strictly between 0 and 1000.
 
     Returns:
         A list of word tokens, e.g. ``221`` -> ``["two", "hundred", "twenty",
         "one"]``.
     """
     words = []
-    if n >= 100:
-        words.append(_ONES[n // 100])
+    if number >= 100:
+        words.append(_ONES[number // 100])
         words.append("hundred")
-        n %= 100
-    if n >= 20:
-        words.append(_TENS[n // 10])
-        n %= 10
-        if n:
-            words.append(_ONES[n])
-    elif n > 0:
-        words.append(_ONES[n])
+        number %= 100
+    if number >= 20:
+        words.append(_TENS[number // 10])
+        number %= 10
+        if number:
+            words.append(_ONES[number])
+    elif number > 0:
+        words.append(_ONES[number])
     return words
 
 
-def int_to_cardinal(n):
+def int_to_cardinal(number):
     """Render an integer as cardinal words (American style, no "and").
 
     Args:
-        n: The integer to convert. Negative values are rendered with a leading
-            "negative".
+        number: The integer to convert. Negative values are rendered with a
+            leading "negative".
 
     Returns:
         The number written out, e.g. ``42`` -> ``"forty two"``, ``-5`` ->
         ``"negative five"``.
 
     Raises:
-        TypeError: If *n* is not an ``int`` (``bool`` is rejected).
+        TypeError: If *number* is not an ``int`` (``bool`` is rejected).
     """
-    if isinstance(n, bool) or not isinstance(n, int):
-        raise TypeError("n must be an int, got %r" % type(n).__name__)
-    if n < 0:
-        return "negative " + int_to_cardinal(-n)
-    if n == 0:
+    if isinstance(number, bool) or not isinstance(number, int):
+        raise TypeError("number must be an int, got %r" % type(number).__name__)
+    if number < 0:
+        return "negative " + int_to_cardinal(-number)
+    if number == 0:
         return "zero"
 
     chunks = []
-    while n > 0:
-        chunks.append(n % 1000)
-        n //= 1000
+    while number > 0:
+        chunks.append(number % 1000)
+        number //= 1000
 
     if len(chunks) > len(_SCALES):
         # Absurdly large; fall back to reading the digits one by one.
-        return " ".join(_DIGIT_WORDS[d] for d in str(n))
+        return " ".join(_DIGIT_WORDS[digit] for digit in str(number))
 
     parts = []
-    for i in range(len(chunks) - 1, -1, -1):
-        chunk = chunks[i]
+    for chunk_index in range(len(chunks) - 1, -1, -1):
+        chunk = chunks[chunk_index]
         if chunk == 0:
             continue
         parts.extend(_words_under_1000(chunk))
-        if i > 0:
-            parts.append(_SCALES[i])
+        if chunk_index > 0:
+            parts.append(_SCALES[chunk_index])
     return " ".join(parts)
 
 
@@ -137,7 +137,7 @@ def _digits_to_words(digits):
     Returns:
         The digits spoken individually, e.g. ``"90"`` -> ``"nine zero"``.
     """
-    return " ".join(_DIGIT_WORDS[d] for d in digits)
+    return " ".join(_DIGIT_WORDS[digit] for digit in digits)
 
 
 def _spell_identifier(ident):
@@ -154,7 +154,7 @@ def _spell_identifier(ident):
     tokens = []
     for part in re.findall(r"\d+|[A-Za-z]+", ident):
         if part.isdigit():
-            tokens.extend(_DIGIT_WORDS[d] for d in part)
+            tokens.extend(_DIGIT_WORDS[digit] for digit in part)
         else:
             tokens.append(part)
     return " ".join(tokens)
@@ -172,10 +172,10 @@ def _pad(match, words):
         run touched a letter, so ``"221B"`` becomes ``"... one B"`` not
         ``"... oneB"``.
     """
-    s = match.string
-    if match.start() > 0 and s[match.start() - 1].isalpha():
+    source = match.string
+    if match.start() > 0 and source[match.start() - 1].isalpha():
         words = " " + words
-    if match.end() < len(s) and s[match.end()].isalpha():
+    if match.end() < len(source) and source[match.end()].isalpha():
         words = words + " "
     return words
 
@@ -228,7 +228,10 @@ def _say_currency(value):
     if value[:1] in _CURRENCY:
         symbol = value[0]
         value = value[1:].strip()
-    major, _, minor = value.partition(".")
+    if "." in value:
+        major, minor = value.split(".", 1)
+    else:
+        major, minor = value, ""
     major = re.sub(r"\D", "", major) or "0"
     minor = re.sub(r"\D", "", minor) if minor else None
     return _currency_words(symbol, major, minor)
@@ -433,18 +436,18 @@ def classify(value):
     if not isinstance(value, str):
         raise TypeError("value must be a str, got %r" % type(value).__name__)
 
-    s = value.strip()
-    if not any(c.isdigit() for c in s):
+    stripped = value.strip()
+    if not any(char.isdigit() for char in stripped):
         raise ValueError("value contains no digit to classify: %r" % value)
-    if s[:1] in _CURRENCY:
+    if stripped[:1] in _CURRENCY:
         return NumberType.CURRENCY
-    if _VALUE_ZIP_RE.fullmatch(s):
+    if _VALUE_ZIP_RE.fullmatch(stripped):
         return NumberType.ZIP
-    if _looks_like_phone(s):
+    if _looks_like_phone(stripped):
         return NumberType.PHONE
-    if _VALUE_DECIMAL_RE.fullmatch(s):
+    if _VALUE_DECIMAL_RE.fullmatch(stripped):
         return NumberType.DECIMAL
-    if any(c.isdigit() for c in s) and any(c.isalpha() for c in s):
+    if any(char.isalpha() for char in stripped):
         return NumberType.UNIT
     return NumberType.CARDINAL
 
@@ -478,7 +481,7 @@ def number_to_words(value, kind=None):
     else:
         if not isinstance(kind, NumberType):
             raise TypeError("kind must be a NumberType or None, got %r" % (kind,))
-        if not any(c.isdigit() for c in value):
+        if not any(char.isdigit() for char in value):
             raise ValueError("value contains no digit to convert: %r" % value)
     return _CONVERTERS[kind](value)
 
@@ -500,10 +503,10 @@ def _force_token(token, kind):
         The token unchanged if it carries no digit, otherwise its spoken form
         with the original surrounding punctuation restored.
     """
-    pre, core, post = _TOKEN_EDGE_RE.match(token).groups()
-    if not any(c.isdigit() for c in core):
+    prefix, core, suffix = _TOKEN_EDGE_RE.match(token).groups()
+    if not any(char.isdigit() for char in core):
         return token
-    return pre + number_to_words(core, kind) + post
+    return prefix + number_to_words(core, kind) + suffix
 
 
 def numbers_to_words(text, kind=None):
@@ -536,7 +539,9 @@ def numbers_to_words(text, kind=None):
     if kind is not None:
         if not isinstance(kind, NumberType):
             raise TypeError("kind must be a NumberType or None, got %r" % (kind,))
-        return re.sub(r"\S+", lambda m: _force_token(m.group(0), kind), text)
+        return re.sub(
+            r"\S+", lambda match: _force_token(match.group(0), kind), text
+        )
 
     text = _CURRENCY_RE.sub(_currency_repl, text)
     text = _UNIT_RE.sub(_unit_repl, text)

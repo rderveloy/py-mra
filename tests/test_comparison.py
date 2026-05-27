@@ -9,15 +9,15 @@ from py_mra import (
 
 
 @pytest.mark.parametrize(
-    "a, b",
+    "first_name, second_name",
     [
         ("Smith", "Smyth"),
         ("Catherine", "Kathryn"),
         ("Robert", "Rupert"),
     ],
 )
-def test_matches(a, b):
-    assert match_rating_comparison(a, b) is True
+def test_matches(first_name, second_name):
+    assert match_rating_comparison(first_name, second_name) is True
 
 
 def test_clear_mismatch():
@@ -43,9 +43,9 @@ def test_symmetry():
 
 def test_pipeline_with_numbers():
     # Numbers must be expanded before comparison.
-    a = numbers_to_words("Route 66")
-    b = numbers_to_words("Route sixty six")
-    assert match_rating_comparison(a, b) is True
+    numeric_form = numbers_to_words("Route 66")
+    spelled_form = numbers_to_words("Route sixty six")
+    assert match_rating_comparison(numeric_form, spelled_form) is True
 
 
 def test_comparison_rejects_non_string():
