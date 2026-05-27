@@ -28,3 +28,12 @@
 - Trust internal callers; only validate at the boundary where external/untrusted
   input enters. Don't add redundant re-validation in private helpers.
 
+## Testing
+- Test coverage should be comprehensive: cover the golden path, edge cases, and
+  every documented exception/warning, for each public function.
+- Always include hostile-input tests: wrong types, empty/whitespace-only values,
+  values with no usable content, Unicode/accented and full-width characters,
+  oversized or deeply nested inputs, and inputs crafted to probe injection or
+  pathological-regex behavior. Assert that bad input raises the documented
+  exception rather than silently misbehaving.
+
