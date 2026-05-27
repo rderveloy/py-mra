@@ -262,3 +262,94 @@ def test_number_to_words_requires_a_digit_with_explicit_kind():
     # An explicit kind still must not be handed a value with no digit.
     with pytest.raises(ValueError):
         number_to_words("abc", NumberType.CURRENCY)
+
+
+# --- large / oversized numbers -----------------------------------------------
+
+@pytest.mark.parametrize(
+    "number, expected",
+    [
+        (-5, "negative five"),
+        (-1000, "negative one thousand"),
+    ],
+)
+def test_int_to_cardinal_negative(number, expected):
+    assert int_to_cardinal(number) == expected
+
+
+def test_int_to_cardinal_beyond_largest_scale_reads_digits():
+    # 10**24 is past "quintillion", so it is read digit by digit.
+    assert int_to_cardinal(10 ** 24) == " ".join(["one"] + ["zero"] * 24)
+
+
+def test_oversized_token_reads_digit_by_digit_without_raising():
+    # Longer than CPython's int<->str cap (4300): must not raise ValueError.
+    token = "9" * 4400
+    assert numbers_to_words(token) == " ".join(["nine"] * 4400)
+
+
+def test_oversized_value_with_explicit_cardinal_kind():
+    token = "9" * 4400
+    assert number_to_words(token, NumberType.CARDINAL) == (
+        " ".join(["nine"] * 4400)
+    )
+
+
+def test_oversized_currency_reads_amount_digit_by_digit():
+    spoken = numbers_to_words("$" + "9" * 25)
+    assert spoken == " ".join(["nine"] * 25) + " dollars"
+
+
+# --- currency edge cases -----------------------------------------------------
+
+@pytest.mark.parametrize(
+    "value, expected",
+    [
+        ("$1234", "one thousand two hundred thirty four dollars"),
+        ("$50000", "fifty thousand dollars"),
+        (
+            "$1,234,567",
+            "one million two hundred thirty four thousand "
+            "five hundred sixty seven dollars",
+        ),
+        (
+            "$1234.56",
+            "one thousand two hundred thirty four dollars "
+            "and fifty six cents",
+        ),
+    ],
+)
+def test_currency_multi_digit_amounts(value, expected):
+    assert numbers_to_words(value) == expected
+
+
+def test_currency_zero_cents_drops_the_cents():
+    assert numbers_to_words("$5.00") == "five dollars"
+
+
+def test_currency_zero_dollars_and_zero_cents():
+    assert numbers_to_words("$0.00") == "zero dollars"
+
+
+@pytest.mark.parametrize(
+    "value, expected",
+    [
+        ("$5", "five dollars"),
+        ("€5", "five euros"),
+        ("£5", "five pounds"),
+    ],
+)
+def test_number_to_words_currency_strips_symbol(value, expected):
+    assert number_to_words(value, NumberType.CURRENCY) == expected
+
+
+# --- Unicode and injection-style inputs --------------------------------------
+
+def test_fullwidth_digits_are_handled():
+    assert classify("９０２１０") is NumberType.ZIP
+    assert numbers_to_words("Apt ９") == "Apt nine"
+
+
+def test_injection_like_text_without_digits_passes_through():
+    payload = "'; DROP TABLE users; --"
+    assert numbers_to_words(payload) == payload

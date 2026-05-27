@@ -73,3 +73,25 @@ def test_whitespace_does_not_warn():
 def test_non_string_raises_type_error():
     with pytest.raises(TypeError):
         match_rating_codex(None)
+
+
+def test_empty_string_returns_empty():
+    assert match_rating_codex("") == ""
+
+
+def test_name_with_no_letters_returns_empty_with_warning():
+    with pytest.warns(SpecialCharacterWarning):
+        assert match_rating_codex("!!!") == ""
+
+
+def test_injection_like_punctuation_is_stripped():
+    # No digits, so no NumericInputError; punctuation is stripped (and warned).
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", SpecialCharacterWarning)
+        code = match_rating_codex("Robert'); DROP--")
+    assert code.isalpha()
+
+
+def test_very_long_name_is_handled_and_truncated():
+    code = match_rating_codex("Ab" * 10000)
+    assert len(code) <= 6

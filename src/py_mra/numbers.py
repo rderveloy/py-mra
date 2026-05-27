@@ -103,7 +103,8 @@ def int_to_cardinal(number: int) -> str:
 
     Returns:
         The number written out, e.g. ``42`` -> ``"forty two"``, ``-5`` ->
-        ``"negative five"``.
+        ``"negative five"``. Numbers beyond the largest named scale
+        (>= 10**21) are read digit by digit.
 
     Raises:
         TypeError: If *number* is not an ``int`` (``bool`` is rejected).
@@ -118,13 +119,14 @@ def int_to_cardinal(number: int) -> str:
         return "zero"
 
     chunks = []
-    while number > 0:
-        chunks.append(number % 1000)
-        number //= 1000
+    remaining = number
+    while remaining > 0:
+        chunks.append(remaining % 1000)
+        remaining //= 1000
 
     if len(chunks) > len(_SCALES):
-        # Absurdly large; fall back to reading the digits one by one.
-        return " ".join(_DIGIT_WORDS[digit] for digit in str(number))
+        # Beyond the largest named scale; read the digits one by one.
+        return _digits_to_words(str(number))
 
     parts = []
     for chunk_index in range(len(chunks) - 1, -1, -1):
@@ -147,6 +149,24 @@ def _digits_to_words(digits: str) -> str:
         The digits spoken individually, e.g. ``"90"`` -> ``"nine zero"``.
     """
     return " ".join(_DIGIT_WORDS[digit] for digit in digits)
+
+
+def _cardinal_from_digits(digit_string: str) -> str:
+    """Read a run of digits as a cardinal number.
+
+    Falls back to reading the digits one by one when the run is longer than the
+    largest named scale. That also sidesteps CPython's int/str length cap, so
+    an oversized numeric token is read rather than raising ``ValueError``.
+
+    Args:
+        digit_string: Digit characters only, no separators; ``""`` means zero.
+
+    Returns:
+        The cardinal reading, e.g. ``"221"`` -> ``"two hundred twenty one"``.
+    """
+    if len(digit_string) > len(_SCALES) * 3:
+        return _digits_to_words(digit_string)
+    return int_to_cardinal(int(digit_string or "0"))
 
 
 def _spell_identifier(ident: str) -> str:
@@ -201,7 +221,7 @@ def _say_cardinal(value: str) -> str:
     Returns:
         The cardinal reading, e.g. ``"1,000"`` -> ``"one thousand"``.
     """
-    return int_to_cardinal(int(value.replace(",", "")))
+    return _cardinal_from_digits(value.replace(",", ""))
 
 
 def _say_decimal(value: str) -> str:
@@ -217,7 +237,7 @@ def _say_decimal(value: str) -> str:
     if "." not in value:
         return _say_cardinal(value)
     whole, fraction = value.split(".", 1)
-    whole_words = int_to_cardinal(int(whole.replace(",", "") or "0"))
+    whole_words = _cardinal_from_digits(whole.replace(",", ""))
     fraction_words = _digits_to_words(re.sub(r"\D", "", fraction))
     return "%s point %s" % (whole_words, fraction_words)
 
@@ -261,13 +281,15 @@ def _currency_words(
         The reading, with singular/plural units and an "and" joining the major
         and minor parts when both are present.
     """
-    dollars = int(major_str.replace(",", ""))
+    # Strip separators and leading zeros so the major part is compared and read
+    # without int(), which keeps oversized amounts from raising ValueError.
+    major_digits = major_str.replace(",", "").lstrip("0") or "0"
     (major_sing, major_plur), (minor_sing, minor_plur) = _CURRENCY[symbol]
 
     parts = []
-    if dollars or not minor_str:
-        unit = major_sing if dollars == 1 else major_plur
-        parts.append("%s %s" % (int_to_cardinal(dollars), unit))
+    if major_digits != "0" or not minor_str:
+        unit = major_sing if major_digits == "1" else major_plur
+        parts.append("%s %s" % (_cardinal_from_digits(major_digits), unit))
 
     if minor_str:
         cents = int(minor_str.ljust(2, "0")[:2])  # ".5" -> 50, ".05" -> 5
@@ -372,7 +394,8 @@ def _integer_repl(match: re.Match) -> str:
 # an optional fractional part.
 _CURRENCY_RE = re.compile(
     r"(?P<sym>[$£€])\s?"
-    r"(?P<major>\d{1,3}(?:,\d{3})*|\d+)"
+    # comma-grouped form (requires a comma) or a plain digit run
+    r"(?P<major>\d{1,3}(?:,\d{3})+|\d+)"
     r"(?:\.(?P<minor>\d{1,2}))?"
 )
 
