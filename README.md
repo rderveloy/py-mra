@@ -38,9 +38,12 @@ match_rating_comparison("Al", "Alexandria") # None  (incomparable lengths)
 | `match_rating_codex(name)` | `str` | The MRA codex for a name. |
 | `match_rating_comparison(a, b)` | `bool` or `None` | `True`/`False` per the minimum-rating table; `None` if the codices' lengths differ by 3 or more. |
 | `match_rating(a, b)` | `int` or `None` | The raw similarity rating (`6 - max_unmatched`), or `None` if incomparable. |
-| `numbers_to_words(text)` | `str` | Expands numeric runs to words (see below). |
+| `numbers_to_words(text, kind=None)` | `str` | Expands numeric runs in free text (see below). |
+| `number_to_words(value, kind=None)` | `str` | Expands a single field value (see below). |
+| `classify(value)` | `NumberType` | Best-guess the type of a single field value. |
 | `int_to_cardinal(n)` | `str` | A non-negative `int` as cardinal words. |
 
+Enums: `NumberType` (`CARDINAL`, `DECIMAL`, `CURRENCY`, `PHONE`, `ZIP`, `UNIT`).
 Exceptions / warnings: `NumericInputError`, `SpecialCharacterWarning`.
 
 ### Encoding rules
@@ -105,6 +108,38 @@ address designators (`Apt`, `Apartment`, `Unit`, `Ste`, `Suite`, `Bldg`,
 `Floor`, `Fl`, `Room`, `Rm`, `Lot`, `Space`, `Dept`, `Box`, `No`, `#`, …). They
 are intentionally simple and documented in `src/py_mra/numbers.py` so they can
 be tuned for a given dataset.
+
+### Telling the library the type
+
+When you already know a field's type — say you're processing a zip-code column —
+skip the guessing and convert a single value directly. Pass a `NumberType` to
+`number_to_words`, or omit it to let `classify` guess:
+
+```python
+from py_mra import number_to_words, classify, NumberType
+
+number_to_words("90210", NumberType.ZIP)   # 'nine zero two one zero'
+number_to_words("12", NumberType.UNIT)     # 'one two'  (identifier, not "twelve")
+number_to_words("12", NumberType.CARDINAL) # 'twelve'
+number_to_words("90210")                   # 'nine zero two one zero'  (classify -> ZIP)
+
+classify("4B")        # NumberType.UNIT
+classify("$19.99")    # NumberType.CURRENCY
+```
+
+`classify` precedence is currency → zip → phone → decimal → unit → cardinal; a
+bare digit run defaults to `CARDINAL`, an isolated five-digit run to `ZIP`, and a
+mixed alphanumeric token (`"4B"`) to `UNIT`. Forcing `CURRENCY` on a symbol-less
+value defaults to dollars.
+
+`numbers_to_words` also accepts `kind` to force **every** digit-bearing token in
+a string to one type (each whitespace-delimited token is converted with
+`number_to_words`, surrounding punctuation preserved):
+
+```python
+numbers_to_words("ids 90210 and 77", NumberType.ZIP)
+# 'ids nine zero two one zero and seven seven'
+```
 
 ## Tests
 

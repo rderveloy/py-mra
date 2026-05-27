@@ -17,7 +17,13 @@ Names containing numbers must be expanded first::
 from .codex import match_rating_codex
 from .comparison import match_rating, match_rating_comparison
 from .exceptions import NumericInputError, SpecialCharacterWarning
-from .numbers import int_to_cardinal, numbers_to_words
+from .numbers import (
+    NumberType,
+    classify,
+    int_to_cardinal,
+    number_to_words,
+    numbers_to_words,
+)
 
 __version__ = "0.1.0"
 
@@ -26,6 +32,9 @@ __all__ = [
     "match_rating",
     "match_rating_comparison",
     "numbers_to_words",
+    "number_to_words",
+    "classify",
+    "NumberType",
     "int_to_cardinal",
     "NumericInputError",
     "SpecialCharacterWarning",

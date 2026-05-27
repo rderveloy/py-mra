@@ -1,6 +1,12 @@
 import pytest
 
-from py_mra import int_to_cardinal, numbers_to_words
+from py_mra import (
+    NumberType,
+    classify,
+    int_to_cardinal,
+    number_to_words,
+    numbers_to_words,
+)
 
 
 @pytest.mark.parametrize(
@@ -119,3 +125,74 @@ def test_full_address_line():
 def test_designator_requires_a_number():
     # "no" without a following number must not be treated as a designator.
     assert numbers_to_words("no thanks") == "no thanks"
+
+
+@pytest.mark.parametrize(
+    "value, kind",
+    [
+        ("66", NumberType.CARDINAL),
+        ("1,000", NumberType.CARDINAL),
+        ("3.14", NumberType.DECIMAL),
+        ("$19.99", NumberType.CURRENCY),
+        ("€5", NumberType.CURRENCY),
+        ("555-1234", NumberType.PHONE),
+        ("(555) 123-4567", NumberType.PHONE),
+        ("+1 555 123 4567", NumberType.PHONE),
+        ("90210", NumberType.ZIP),
+        ("90210-1234", NumberType.ZIP),
+        ("4B", NumberType.UNIT),
+        ("Apt 4B", NumberType.UNIT),
+    ],
+)
+def test_classify(value, kind):
+    assert classify(value) is kind
+
+
+def test_number_to_words_uses_classify_when_no_kind():
+    assert number_to_words("90210") == "nine zero two one zero"
+    assert number_to_words("66") == "sixty six"
+
+
+@pytest.mark.parametrize(
+    "value, kind, expected",
+    [
+        ("12345", NumberType.ZIP, "one two three four five"),
+        ("12345", NumberType.CARDINAL, "twelve thousand three hundred forty five"),
+        ("12", NumberType.UNIT, "one two"),
+        ("5", NumberType.CURRENCY, "five dollars"),  # symbol-less defaults to dollars
+        ("3.5", NumberType.CURRENCY, "three dollars and fifty cents"),
+        ("66", NumberType.DECIMAL, "sixty six"),  # no dot -> falls back to cardinal
+    ],
+)
+def test_number_to_words_explicit_kind(value, kind, expected):
+    assert number_to_words(value, kind) == expected
+
+
+def test_number_to_words_rejects_bad_kind():
+    with pytest.raises(TypeError):
+        number_to_words("5", "zip")
+
+
+def test_classify_rejects_non_string():
+    with pytest.raises(TypeError):
+        classify(5)
+
+
+def test_scanner_kind_override_forces_type():
+    # Both numbers forced to zip-style digit-by-digit.
+    assert numbers_to_words("code 90210 ref 77", NumberType.ZIP) == (
+        "code nine zero two one zero ref seven seven"
+    )
+
+
+def test_scanner_kind_override_preserves_punctuation():
+    assert numbers_to_words("66.", NumberType.CARDINAL) == "sixty six."
+
+
+def test_scanner_kind_override_skips_non_numeric_tokens():
+    assert numbers_to_words("Lucky 7 today", NumberType.CARDINAL) == "Lucky seven today"
+
+
+def test_scanner_rejects_bad_kind():
+    with pytest.raises(TypeError):
+        numbers_to_words("5", "cardinal")
