@@ -16,3 +16,15 @@
   the type isn't obvious from the assignment. Use `from __future__ import
   annotations` so modern syntax (`list[str]`, `X | None`) works on the supported
   Python versions.
+
+## Input validation
+- Validate inputs at public API boundaries and raise clear, specific exceptions
+  rather than silently coercing, altering, or producing nonsense. Sanitize, do
+  not mutate: reject bad input instead of "fixing" it.
+- Use `TypeError` for wrong argument types and `ValueError` for values that are
+  the right type but unusable (e.g. a number string with no digit). Include the
+  offending value in the message (via `%r`).
+- Document every raised exception in the function's `Raises:` docstring section.
+- Trust internal callers; only validate at the boundary where external/untrusted
+  input enters. Don't add redundant re-validation in private helpers.
+
