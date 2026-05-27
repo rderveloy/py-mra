@@ -6,6 +6,14 @@ from .codex import match_rating_codex
 
 
 def _minimum_rating(length_sum):
+    """Return the minimum rating required for a match given the code lengths.
+
+    Args:
+        length_sum: The sum of the two codices' lengths.
+
+    Returns:
+        The MRA minimum rating threshold (2-5).
+    """
     if length_sum <= 4:
         return 5
     if length_sum <= 7:
@@ -16,7 +24,16 @@ def _minimum_rating(length_sum):
 
 
 def _rating_from_codices(codex1, codex2):
-    """Similarity rating of two already-encoded names, or ``None``."""
+    """Compute the similarity rating of two already-encoded names.
+
+    Args:
+        codex1: The first name's codex.
+        codex2: The second name's codex.
+
+    Returns:
+        The rating ``6 - max_unmatched``, or ``None`` if the codices' lengths
+        differ by three or more (incomparable).
+    """
     if abs(len(codex1) - len(codex2)) >= 3:
         return None
 
@@ -46,6 +63,22 @@ def match_rating(name1, name2):
     they are deemed incomparable and ``None`` is returned. Otherwise the codes
     are reduced by removing characters that match position-for-position from the
     left and then from the right, and the rating is ``6 - max_unmatched``.
+
+    Args:
+        name1: The first name to compare.
+        name2: The second name to compare.
+
+    Returns:
+        The integer similarity rating, or ``None`` if the names are
+        incomparable.
+
+    Raises:
+        TypeError: If either name is not a ``str``.
+        NumericInputError: If either name contains a numeric character.
+
+    Warns:
+        SpecialCharacterWarning: If punctuation or symbols are stripped from
+            either name during encoding.
     """
     return _rating_from_codices(match_rating_codex(name1), match_rating_codex(name2))
 
@@ -53,8 +86,21 @@ def match_rating(name1, name2):
 def match_rating_comparison(name1, name2):
     """Return ``True``/``False`` if two names match per the MRA threshold.
 
-    Returns ``None`` when the names are incomparable (encoded lengths differ by
-    three or more).
+    Args:
+        name1: The first name to compare.
+        name2: The second name to compare.
+
+    Returns:
+        ``True`` or ``False`` for the match decision, or ``None`` when the names
+        are incomparable (encoded lengths differ by three or more).
+
+    Raises:
+        TypeError: If either name is not a ``str``.
+        NumericInputError: If either name contains a numeric character.
+
+    Warns:
+        SpecialCharacterWarning: If punctuation or symbols are stripped from
+            either name during encoding.
     """
     codex1 = match_rating_codex(name1)
     codex2 = match_rating_codex(name2)

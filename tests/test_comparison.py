@@ -1,6 +1,11 @@
 import pytest
 
-from py_mra import match_rating, match_rating_comparison, numbers_to_words
+from py_mra import (
+    NumericInputError,
+    match_rating,
+    match_rating_comparison,
+    numbers_to_words,
+)
 
 
 @pytest.mark.parametrize(
@@ -41,3 +46,15 @@ def test_pipeline_with_numbers():
     a = numbers_to_words("Route 66")
     b = numbers_to_words("Route sixty six")
     assert match_rating_comparison(a, b) is True
+
+
+def test_comparison_rejects_non_string():
+    with pytest.raises(TypeError):
+        match_rating_comparison("Smith", None)
+    with pytest.raises(TypeError):
+        match_rating(5, "Smith")
+
+
+def test_comparison_rejects_numeric_input():
+    with pytest.raises(NumericInputError):
+        match_rating_comparison("Route 66", "Route 66")

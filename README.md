@@ -46,6 +46,12 @@ match_rating_comparison("Al", "Alexandria") # None  (incomparable lengths)
 Enums: `NumberType` (`CARDINAL`, `DECIMAL`, `CURRENCY`, `PHONE`, `ZIP`, `UNIT`).
 Exceptions / warnings: `NumericInputError`, `SpecialCharacterWarning`.
 
+Inputs are validated, not silently coerced. All functions raise `TypeError` for
+wrong argument types (e.g. a non-`str` name, a `kind` that isn't a `NumberType`);
+`classify` and `number_to_words` raise `ValueError` when given a value with no
+digit; and `match_rating_codex` raises `NumericInputError` rather than dropping
+digits. Each function's exact `Raises:` contract is in its docstring.
+
 ### Encoding rules
 
 1. Reject any input containing numeric characters (raises `NumericInputError`).

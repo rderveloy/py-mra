@@ -9,7 +9,15 @@ _VOWELS = frozenset("AEIOU")
 
 
 def _to_ascii(name):
-    """Transliterate accented/Unicode letters to their nearest ASCII form."""
+    """Transliterate accented/Unicode letters to their nearest ASCII form.
+
+    Args:
+        name: The text to transliterate.
+
+    Returns:
+        *name* decomposed to ASCII with combining marks and non-ASCII
+        characters dropped, e.g. ``"José"`` -> ``"Jose"``.
+    """
     decomposed = unicodedata.normalize("NFKD", name)
     stripped = "".join(c for c in decomposed if not unicodedata.combining(c))
     return stripped.encode("ascii", "ignore").decode("ascii")
@@ -29,6 +37,21 @@ def match_rating_codex(name):
     4. Uppercase, keep the first letter, delete subsequent vowels, and collapse
        adjacent duplicate letters.
     5. If the result exceeds six letters, keep the first three and last three.
+
+    Args:
+        name: The name to encode. Must be alphabetic (after transliteration);
+            digits are rejected rather than silently dropped.
+
+    Returns:
+        The MRA codex, e.g. ``"Smith"`` -> ``"SMTH"``. A name with no letters
+        (after stripping) yields ``""``.
+
+    Raises:
+        TypeError: If *name* is not a ``str``.
+        NumericInputError: If *name* contains any numeric character.
+
+    Warns:
+        SpecialCharacterWarning: If punctuation or symbols are stripped.
     """
     if not isinstance(name, str):
         raise TypeError("name must be a str, got %r" % type(name).__name__)

@@ -196,3 +196,49 @@ def test_scanner_kind_override_skips_non_numeric_tokens():
 def test_scanner_rejects_bad_kind():
     with pytest.raises(TypeError):
         numbers_to_words("5", "cardinal")
+
+
+# --- input validation --------------------------------------------------------
+
+@pytest.mark.parametrize("bad", ["5", None, b"5", 3.0])
+def test_int_to_cardinal_rejects_non_int(bad):
+    with pytest.raises(TypeError):
+        int_to_cardinal(bad)
+
+
+def test_int_to_cardinal_rejects_bool():
+    with pytest.raises(TypeError):
+        int_to_cardinal(True)
+
+
+def test_numbers_to_words_rejects_non_string():
+    with pytest.raises(TypeError):
+        numbers_to_words(123)
+
+
+@pytest.mark.parametrize("bad", [123, None, ["5"]])
+def test_classify_rejects_non_string_types(bad):
+    with pytest.raises(TypeError):
+        classify(bad)
+
+
+@pytest.mark.parametrize("value", ["", "abc", "   ", "no digits here"])
+def test_classify_requires_a_digit(value):
+    with pytest.raises(ValueError):
+        classify(value)
+
+
+def test_number_to_words_rejects_non_string():
+    with pytest.raises(TypeError):
+        number_to_words(90210)
+
+
+def test_number_to_words_requires_a_digit_when_classifying():
+    with pytest.raises(ValueError):
+        number_to_words("abc")
+
+
+def test_number_to_words_requires_a_digit_with_explicit_kind():
+    # An explicit kind still must not be handed a value with no digit.
+    with pytest.raises(ValueError):
+        number_to_words("abc", NumberType.CURRENCY)
