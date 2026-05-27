@@ -1,5 +1,7 @@
 """Match Rating Approach encoder (the codex)."""
 
+from __future__ import annotations
+
 import unicodedata
 import warnings
 
@@ -8,7 +10,7 @@ from .exceptions import NumericInputError, SpecialCharacterWarning
 _VOWELS = frozenset("AEIOU")
 
 
-def _to_ascii(name):
+def _to_ascii(name: str) -> str:
     """Transliterate accented/Unicode letters to their nearest ASCII form.
 
     Args:
@@ -25,7 +27,7 @@ def _to_ascii(name):
     return stripped.encode("ascii", "ignore").decode("ascii")
 
 
-def match_rating_codex(name):
+def match_rating_codex(name: str) -> str:
     """Encode *name* into its Match Rating Approach code.
 
     Rules:

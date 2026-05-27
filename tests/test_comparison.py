@@ -36,9 +36,9 @@ def test_match_rating_is_int_or_none():
 
 
 def test_symmetry():
-    assert match_rating_comparison("Smith", "Smyth") == match_rating_comparison(
-        "Smyth", "Smith"
-    )
+    forward = match_rating_comparison("Smith", "Smyth")
+    backward = match_rating_comparison("Smyth", "Smith")
+    assert forward == backward
 
 
 def test_pipeline_with_numbers():

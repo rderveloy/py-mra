@@ -1,11 +1,13 @@
 """Match Rating Approach similarity comparison."""
 
+from __future__ import annotations
+
 from itertools import zip_longest
 
 from .codex import match_rating_codex
 
 
-def _minimum_rating(length_sum):
+def _minimum_rating(length_sum: int) -> int:
     """Return the minimum rating required for a match given the code lengths.
 
     Args:
@@ -23,7 +25,7 @@ def _minimum_rating(length_sum):
     return 2
 
 
-def _rating_from_codices(codex1, codex2):
+def _rating_from_codices(codex1: str, codex2: str) -> int | None:
     """Compute the similarity rating of two already-encoded names.
 
     Args:
@@ -46,7 +48,10 @@ def _rating_from_codices(codex1, codex2):
                 remaining2.append(char2)
 
     unmatched1 = unmatched2 = 0
-    for char1, char2 in zip_longest(reversed(remaining1), reversed(remaining2)):
+    reversed_pairs = zip_longest(
+        reversed(remaining1), reversed(remaining2)
+    )
+    for char1, char2 in reversed_pairs:
         if char1 != char2:
             if char1:
                 unmatched1 += 1
@@ -56,13 +61,13 @@ def _rating_from_codices(codex1, codex2):
     return 6 - max(unmatched1, unmatched2)
 
 
-def match_rating(name1, name2):
+def match_rating(name1: str, name2: str) -> int | None:
     """Return the similarity rating of two names, or ``None`` if incomparable.
 
     The two names are encoded; if their code lengths differ by three or more
     they are deemed incomparable and ``None`` is returned. Otherwise the codes
-    are reduced by removing characters that match position-for-position from the
-    left and then from the right, and the rating is ``6 - max_unmatched``.
+    are reduced by removing characters that match position-for-position from
+    the left and then from the right; the rating is ``6 - max_unmatched``.
 
     Args:
         name1: The first name to compare.
@@ -80,10 +85,12 @@ def match_rating(name1, name2):
         SpecialCharacterWarning: If punctuation or symbols are stripped from
             either name during encoding.
     """
-    return _rating_from_codices(match_rating_codex(name1), match_rating_codex(name2))
+    return _rating_from_codices(
+        match_rating_codex(name1), match_rating_codex(name2)
+    )
 
 
-def match_rating_comparison(name1, name2):
+def match_rating_comparison(name1: str, name2: str) -> bool | None:
     """Return ``True``/``False`` if two names match per the MRA threshold.
 
     Args:
@@ -91,8 +98,8 @@ def match_rating_comparison(name1, name2):
         name2: The second name to compare.
 
     Returns:
-        ``True`` or ``False`` for the match decision, or ``None`` when the names
-        are incomparable (encoded lengths differ by three or more).
+        ``True`` or ``False`` for the match decision, or ``None`` when the
+        names are incomparable (encoded lengths differ by three or more).
 
     Raises:
         TypeError: If either name is not a ``str``.

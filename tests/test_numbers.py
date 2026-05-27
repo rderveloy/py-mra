@@ -21,7 +21,11 @@ from py_mra import (
         (221, "two hundred twenty one"),
         (1000, "one thousand"),
         (1000000, "one million"),
-        (1234567, "one million two hundred thirty four thousand five hundred sixty seven"),
+        (
+            1234567,
+            "one million two hundred thirty four thousand "
+            "five hundred sixty seven",
+        ),
     ],
 )
 def test_int_to_cardinal(number, expected):
@@ -41,7 +45,9 @@ def test_decimal():
 
 
 def test_currency_dollars_and_cents():
-    assert numbers_to_words("$19.99") == "nineteen dollars and ninety nine cents"
+    assert numbers_to_words("$19.99") == (
+        "nineteen dollars and ninety nine cents"
+    )
 
 
 def test_currency_singular():
@@ -68,7 +74,8 @@ def test_phone_digit_by_digit(phone, expected):
 
 
 def test_international_phone_prefixes_plus():
-    assert numbers_to_words("+1 555 123 4567").startswith("plus one five five five")
+    spoken = numbers_to_words("+1 555 123 4567")
+    assert spoken.startswith("plus one five five five")
 
 
 def test_letters_preserved_around_numbers():
@@ -111,15 +118,20 @@ def test_unit_designators_digit_by_digit(field, expected):
 
 def test_house_number_stays_cardinal():
     # An unlabeled leading number is a quantity, read as a cardinal.
-    assert numbers_to_words("221 Baker Street") == "two hundred twenty one Baker Street"
+    assert numbers_to_words("221 Baker Street") == (
+        "two hundred twenty one Baker Street"
+    )
 
 
 def test_full_address_line():
-    addr = "221B Baker St Apt 5, London SW1A 1AA"
-    out = numbers_to_words(addr)
-    assert "two hundred twenty one B" in out  # house number (cardinal) + unit letter
-    assert "Apt five" in out  # apartment identifier digit-by-digit
-    assert not any(ch.isdigit() for ch in out)  # safe to encode
+    address = "221B Baker St Apt 5, London SW1A 1AA"
+    spoken = numbers_to_words(address)
+    # house number read as a cardinal, with the unit letter kept
+    assert "two hundred twenty one B" in spoken
+    # apartment identifier read digit by digit
+    assert "Apt five" in spoken
+    # no digits remain, so the result is safe to encode
+    assert not any(char.isdigit() for char in spoken)
 
 
 def test_designator_requires_a_number():
@@ -157,11 +169,17 @@ def test_number_to_words_uses_classify_when_no_kind():
     "value, kind, expected",
     [
         ("12345", NumberType.ZIP, "one two three four five"),
-        ("12345", NumberType.CARDINAL, "twelve thousand three hundred forty five"),
+        (
+            "12345",
+            NumberType.CARDINAL,
+            "twelve thousand three hundred forty five",
+        ),
         ("12", NumberType.UNIT, "one two"),
-        ("5", NumberType.CURRENCY, "five dollars"),  # symbol-less defaults to dollars
+        # a symbol-less value forced to currency defaults to dollars
+        ("5", NumberType.CURRENCY, "five dollars"),
         ("3.5", NumberType.CURRENCY, "three dollars and fifty cents"),
-        ("66", NumberType.DECIMAL, "sixty six"),  # no dot -> falls back to cardinal
+        # no decimal point, so it falls back to a cardinal reading
+        ("66", NumberType.DECIMAL, "sixty six"),
     ],
 )
 def test_number_to_words_explicit_kind(value, kind, expected):
@@ -190,7 +208,9 @@ def test_scanner_kind_override_preserves_punctuation():
 
 
 def test_scanner_kind_override_skips_non_numeric_tokens():
-    assert numbers_to_words("Lucky 7 today", NumberType.CARDINAL) == "Lucky seven today"
+    assert numbers_to_words("Lucky 7 today", NumberType.CARDINAL) == (
+        "Lucky seven today"
+    )
 
 
 def test_scanner_rejects_bad_kind():

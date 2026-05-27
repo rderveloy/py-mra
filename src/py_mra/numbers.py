@@ -14,10 +14,10 @@ with words, choosing a style based on context:
 
 Style by context: *quantities* (bare integers such as a house number) are read
 as cardinals, while *identifiers* (zip codes, apartment/unit/suite/box numbers)
-are read digit by digit, since they are labels rather than amounts and are often
-alphanumeric (``"4B"``). Output is space-separated with no hyphens, so it flows
-cleanly into the encoder. The phone, zip and unit heuristics are intentionally
-simple and documented here so they can be tuned for a given dataset.
+are read digit by digit, since they are labels rather than amounts and are
+often alphanumeric (``"4B"``). Output is space-separated with no hyphens, so it
+flows cleanly into the encoder. The phone, zip and unit heuristics are
+intentionally simple and documented here so they can be tuned for a dataset.
 
 Two levels of API are provided:
 
@@ -27,7 +27,10 @@ Two levels of API are provided:
   caller already knows the type, or omit it to let :func:`classify` guess.
 """
 
+from __future__ import annotations
+
 import re
+from collections.abc import Callable
 from enum import Enum
 
 
@@ -36,10 +39,11 @@ class NumberType(Enum):
 
     CARDINAL = "cardinal"   # a quantity: "66" -> "sixty six"
     DECIMAL = "decimal"     # "3.14" -> "three point one four"
-    CURRENCY = "currency"   # "$19.99" -> "nineteen dollars and ninety nine cents"
+    CURRENCY = "currency"   # "$19.99" -> "nineteen dollars and ..."
     PHONE = "phone"         # "555-1234" -> "five five five one two three four"
     ZIP = "zip"             # "90210" -> "nine zero two one zero"
     UNIT = "unit"           # an identifier: "4B" -> "four B"
+
 
 _ONES = [
     "zero", "one", "two", "three", "four", "five", "six", "seven", "eight",
@@ -50,7 +54,10 @@ _TENS = [
     "", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy",
     "eighty", "ninety",
 ]
-_SCALES = ["", "thousand", "million", "billion", "trillion", "quadrillion", "quintillion"]
+_SCALES = [
+    "", "thousand", "million", "billion", "trillion", "quadrillion",
+    "quintillion",
+]
 
 _DIGIT_WORDS = {str(digit): _ONES[digit] for digit in range(10)}
 
@@ -62,7 +69,7 @@ _CURRENCY = {
 }
 
 
-def _words_under_1000(number):
+def _words_under_1000(number: int) -> list[str]:
     """Return the word tokens for an integer in 1..999.
 
     Args:
@@ -87,7 +94,7 @@ def _words_under_1000(number):
     return words
 
 
-def int_to_cardinal(number):
+def int_to_cardinal(number: int) -> str:
     """Render an integer as cardinal words (American style, no "and").
 
     Args:
@@ -102,7 +109,9 @@ def int_to_cardinal(number):
         TypeError: If *number* is not an ``int`` (``bool`` is rejected).
     """
     if isinstance(number, bool) or not isinstance(number, int):
-        raise TypeError("number must be an int, got %r" % type(number).__name__)
+        raise TypeError(
+            "number must be an int, got %r" % type(number).__name__
+        )
     if number < 0:
         return "negative " + int_to_cardinal(-number)
     if number == 0:
@@ -128,7 +137,7 @@ def int_to_cardinal(number):
     return " ".join(parts)
 
 
-def _digits_to_words(digits):
+def _digits_to_words(digits: str) -> str:
     """Read a run of digit characters one by one.
 
     Args:
@@ -140,7 +149,7 @@ def _digits_to_words(digits):
     return " ".join(_DIGIT_WORDS[digit] for digit in digits)
 
 
-def _spell_identifier(ident):
+def _spell_identifier(ident: str) -> str:
     """Read an alphanumeric identifier: digits spoken singly, letters kept.
 
     Args:
@@ -160,7 +169,7 @@ def _spell_identifier(ident):
     return " ".join(tokens)
 
 
-def _pad(match, words):
+def _pad(match: re.Match, words: str) -> str:
     """Pad a replacement with spaces when the numeric run abuts a letter.
 
     Args:
@@ -182,7 +191,7 @@ def _pad(match, words):
 
 # --- value-level converters: operate on a single numeric string -------------
 
-def _say_cardinal(value):
+def _say_cardinal(value: str) -> str:
     """Convert a (comma-grouped) integer string to cardinal words.
 
     Args:
@@ -195,7 +204,7 @@ def _say_cardinal(value):
     return int_to_cardinal(int(value.replace(",", "")))
 
 
-def _say_decimal(value):
+def _say_decimal(value: str) -> str:
     """Convert a decimal string to words, the fraction read digit by digit.
 
     Args:
@@ -207,12 +216,13 @@ def _say_decimal(value):
     """
     if "." not in value:
         return _say_cardinal(value)
-    whole, frac = value.split(".", 1)
+    whole, fraction = value.split(".", 1)
     whole_words = int_to_cardinal(int(whole.replace(",", "") or "0"))
-    return "%s point %s" % (whole_words, _digits_to_words(re.sub(r"\D", "", frac)))
+    fraction_words = _digits_to_words(re.sub(r"\D", "", fraction))
+    return "%s point %s" % (whole_words, fraction_words)
 
 
-def _say_currency(value):
+def _say_currency(value: str) -> str:
     """Convert a currency value to words.
 
     Args:
@@ -237,7 +247,9 @@ def _say_currency(value):
     return _currency_words(symbol, major, minor)
 
 
-def _currency_words(symbol, major_str, minor_str):
+def _currency_words(
+    symbol: str, major_str: str, minor_str: str | None
+) -> str:
     """Assemble the spoken form of a currency amount from its parts.
 
     Args:
@@ -266,12 +278,12 @@ def _currency_words(symbol, major_str, minor_str):
     return " and ".join(parts) if parts else "%s %s" % ("zero", major_plur)
 
 
-def _say_phone(value):
+def _say_phone(value: str) -> str:
     """Read a phone number digit by digit.
 
     Args:
-        value: A phone number in any format; non-digits are ignored apart from a
-            leading ``+``, which becomes "plus".
+        value: A phone number in any format; non-digits are ignored apart
+            from a leading ``+``, which becomes "plus".
 
     Returns:
         The digits spoken individually, e.g. ``"555-1234"`` -> ``"five five
@@ -283,7 +295,7 @@ def _say_phone(value):
     return words
 
 
-def _say_zip(value):
+def _say_zip(value: str) -> str:
     """Read a postal code digit by digit.
 
     Args:
@@ -296,7 +308,7 @@ def _say_zip(value):
     return _digits_to_words(re.sub(r"\D", "", value))
 
 
-def _say_unit(value):
+def _say_unit(value: str) -> str:
     """Read a secondary-address identifier (apartment, suite, box, ...).
 
     Args:
@@ -310,7 +322,7 @@ def _say_unit(value):
     return _spell_identifier(value)
 
 
-_CONVERTERS = {
+_CONVERTERS: dict[NumberType, Callable[[str], str]] = {
     NumberType.CARDINAL: _say_cardinal,
     NumberType.DECIMAL: _say_decimal,
     NumberType.CURRENCY: _say_currency,
@@ -321,36 +333,37 @@ _CONVERTERS = {
 
 
 # --- scanner replacement callbacks (auto-detect path) ------------------------
-# Each takes a regex match for a numeric run and returns its padded replacement.
+# Each takes a regex match for a numeric run and returns the padded reading.
 
-def _currency_repl(match):
+def _currency_repl(match: re.Match) -> str:
     """Replace a matched currency run (groups ``sym``/``major``/``minor``)."""
     return _pad(match, _currency_words(
         match.group("sym"), match.group("major"), match.group("minor")))
 
 
-def _unit_repl(match):
+def _unit_repl(match: re.Match) -> str:
     """Replace a matched unit run (groups ``desig`` and ``id``)."""
-    desig = match.group("desig").rstrip()
-    return _pad(match, "%s %s" % (desig, _spell_identifier(match.group("id"))))
+    designator = match.group("desig").rstrip()
+    identifier = _spell_identifier(match.group("id"))
+    return _pad(match, "%s %s" % (designator, identifier))
 
 
-def _zip_repl(match):
+def _zip_repl(match: re.Match) -> str:
     """Replace a matched zip-code run."""
     return _pad(match, _say_zip(match.group(0)))
 
 
-def _phone_repl(match):
+def _phone_repl(match: re.Match) -> str:
     """Replace a matched phone-number run."""
     return _pad(match, _say_phone(match.group(0)))
 
 
-def _decimal_repl(match):
+def _decimal_repl(match: re.Match) -> str:
     """Replace a matched decimal run."""
     return _pad(match, _say_decimal(match.group(0)))
 
 
-def _integer_repl(match):
+def _integer_repl(match: re.Match) -> str:
     """Replace a matched integer run."""
     return _pad(match, _say_cardinal(match.group(0)))
 
@@ -358,15 +371,17 @@ def _integer_repl(match):
 # Currency: a supported symbol, optional space, a (comma-grouped) amount, and
 # an optional fractional part.
 _CURRENCY_RE = re.compile(
-    r"(?P<sym>[$£€])\s?(?P<major>\d{1,3}(?:,\d{3})*|\d+)(?:\.(?P<minor>\d{1,2}))?"
+    r"(?P<sym>[$£€])\s?"
+    r"(?P<major>\d{1,3}(?:,\d{3})*|\d+)"
+    r"(?:\.(?P<minor>\d{1,2}))?"
 )
 
-# Secondary-address designators (apartment, unit, suite, box, "#", ...) followed
-# by an identifier that contains at least one digit. The identifier is read out
+# Secondary-address designators (apartment, unit, suite, box, "#", ...)
+# followed by an identifier with at least one digit. The identifier is read
 # digit by digit so alphanumerics like "4B" decompose cleanly.
 _UNIT_RE = re.compile(
-    r"(?P<desig>#|\b(?:apartment|apt|unit|suite|ste|building|bldg|floor|fl|room|"
-    r"rm|lot|space|spc|dept|trailer|trlr|box|number|no)\b\.?)\s*"
+    r"(?P<desig>#|\b(?:apartment|apt|unit|suite|ste|building|bldg|floor|fl|"
+    r"room|rm|lot|space|spc|dept|trailer|trlr|box|number|no)\b\.?)\s*"
     r"(?P<id>[0-9A-Za-z]*[0-9][0-9A-Za-z]*)",
     re.IGNORECASE,
 )
@@ -380,9 +395,9 @@ _ZIP_RE = re.compile(r"(?<!\d)\d{5}(?:-\d{4})?(?!\d)")
 _PHONE_RE = re.compile(
     r"""
     (?<![\w])(?:
-        \+\d[\d\s().\-]{5,}\d                      # international: + then separated digits
-      | \(?\d{3}\)?[\s.\-]\d{3}[\s.\-]\d{4}        # 10-digit, e.g. (555) 123-4567
-      | (?<!\d)\d{3}[\s.\-]\d{4}(?!\d)             # 7-digit local, e.g. 555-1234
+        \+\d[\d\s().\-]{5,}\d                  # international: + then digits
+      | \(?\d{3}\)?[\s.\-]\d{3}[\s.\-]\d{4}    # 10-digit (555) 123-4567
+      | (?<!\d)\d{3}[\s.\-]\d{4}(?!\d)         # 7-digit local 555-1234
     )(?![\w])
     """,
     re.VERBOSE,
@@ -399,7 +414,7 @@ _VALUE_DECIMAL_RE = re.compile(r"\d+\.\d+")
 _VALUE_PHONE_RE = re.compile(r"\+?[\d().\-\s]*\d[\d().\-\s]*")
 
 
-def _looks_like_phone(value):
+def _looks_like_phone(value: str) -> bool:
     """Report whether a value has the shape of a phone number.
 
     Args:
@@ -415,12 +430,12 @@ def _looks_like_phone(value):
     return len(digits) >= 7 and bool(re.search(r"[().\-\s]|^\+", value))
 
 
-def classify(value):
+def classify(value: str) -> NumberType:
     """Best-guess the :class:`NumberType` of a single field value.
 
-    Precedence is currency, zip, phone, decimal, unit, then cardinal. Bare digit
-    runs default to ``CARDINAL``; an isolated five-digit run is read as a ``ZIP``
-    and a mixed alphanumeric token (``"4B"``) as a ``UNIT``.
+    Precedence is currency, zip, phone, decimal, unit, then cardinal. Bare
+    digit runs default to ``CARDINAL``; an isolated five-digit run is read as a
+    ``ZIP`` and a mixed alphanumeric token (``"4B"``) as a ``UNIT``.
 
     Args:
         value: The field value to classify, e.g. ``"4B"`` or ``"$19.99"``.
@@ -452,7 +467,7 @@ def classify(value):
     return NumberType.CARDINAL
 
 
-def number_to_words(value, kind=None):
+def number_to_words(value: str, kind: NumberType | None = None) -> str:
     """Convert a single numeric field *value* to words.
 
     If *kind* is ``None`` the type is guessed with :func:`classify`; otherwise
@@ -480,7 +495,9 @@ def number_to_words(value, kind=None):
         kind = classify(value)  # raises ValueError when there is no digit
     else:
         if not isinstance(kind, NumberType):
-            raise TypeError("kind must be a NumberType or None, got %r" % (kind,))
+            raise TypeError(
+                "kind must be a NumberType or None, got %r" % (kind,)
+            )
         if not any(char.isdigit() for char in value):
             raise ValueError("value contains no digit to convert: %r" % value)
     return _CONVERTERS[kind](value)
@@ -489,8 +506,8 @@ def number_to_words(value, kind=None):
 _TOKEN_EDGE_RE = re.compile(r"^([^0-9A-Za-z$£€+]*)(.*?)([^0-9A-Za-z$£€+]*)$")
 
 
-def _force_token(token, kind):
-    """Convert one whitespace-delimited token under a forced :class:`NumberType`.
+def _force_token(token: str, kind: NumberType) -> str:
+    """Convert one whitespace-delimited token under a forced number type.
 
     Leading and trailing punctuation is split off and re-attached so it is
     preserved around the spoken form.
@@ -509,7 +526,7 @@ def _force_token(token, kind):
     return prefix + number_to_words(core, kind) + suffix
 
 
-def numbers_to_words(text, kind=None):
+def numbers_to_words(text: str, kind: NumberType | None = None) -> str:
     """Replace every numeric run in *text* with its spoken-word equivalent.
 
     Letters and other characters are left untouched, so ``"221B Baker St"``
@@ -538,7 +555,9 @@ def numbers_to_words(text, kind=None):
         raise TypeError("text must be a str, got %r" % type(text).__name__)
     if kind is not None:
         if not isinstance(kind, NumberType):
-            raise TypeError("kind must be a NumberType or None, got %r" % (kind,))
+            raise TypeError(
+                "kind must be a NumberType or None, got %r" % (kind,)
+            )
         return re.sub(
             r"\S+", lambda match: _force_token(match.group(0), kind), text
         )
