@@ -18,22 +18,28 @@
   Python versions.
 
 ## Input validation
-- Validate inputs at public API boundaries and raise clear, specific exceptions
-  rather than silently coercing, altering, or producing nonsense. Sanitize, do
-  not mutate: reject bad input instead of "fixing" it.
+- Validate inputs in every callable function — not just public API boundaries.
+  Python has no real access control: "private"/underscore-prefixed (and even
+  name-mangled `__dunder`) functions can still be called by external code, so
+  treat every reachable function as a boundary and validate its arguments.
+  Raise clear, specific exceptions rather than silently coercing, altering, or
+  producing nonsense. Sanitize, do not mutate: reject bad input instead of
+  "fixing" it.
 - Use `TypeError` for wrong argument types and `ValueError` for values that are
   the right type but unusable (e.g. a number string with no digit). Include the
   offending value in the message (via `%r`).
 - Document every raised exception in the function's `Raises:` docstring section.
-- Trust internal callers; only validate at the boundary where external/untrusted
-  input enters. Don't add redundant re-validation in private helpers.
+- Each function validates its own parameters; never assume a caller (even an
+  internal one) has already validated. Duplicate validation across internal
+  call paths is acceptable and expected — correctness beats avoiding the
+  redundant check.
 
 ## Testing
-- Test coverage should be comprehensive: cover the golden path, edge cases, and
-  every documented exception/warning, for each public function.
+- Test coverage should be comprehensive: cover the golden path, all edge cases
+  and execution paths, and every documented exception/warning, for each public
+  function.
 - Always include hostile-input tests: wrong types, empty/whitespace-only values,
   values with no usable content, Unicode/accented and full-width characters,
   oversized or deeply nested inputs, and inputs crafted to probe injection or
   pathological-regex behavior. Assert that bad input raises the documented
   exception rather than silently misbehaving.
-

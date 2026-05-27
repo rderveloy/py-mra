@@ -9,6 +9,7 @@ from py_mra import (
     match_rating_comparison,
     numbers_to_words,
 )
+from py_mra.comparison import _minimum_rating
 
 
 @pytest.mark.parametrize(
@@ -89,3 +90,13 @@ def test_short_names_high_threshold_non_match():
 def test_mid_length_threshold_match():
     # Codices "SM"/"SMY", length sum 5 -> minimum rating 4; rating 5 -> match.
     assert match_rating_comparison("Sam", "Sammy") is True
+
+
+def test_minimum_rating_rejects_negative():
+    with pytest.raises(ValueError):
+        _minimum_rating(-1)
+
+
+def test_minimum_rating_rejects_non_int():
+    with pytest.raises(TypeError):
+        _minimum_rating("5")

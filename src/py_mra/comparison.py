@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from itertools import zip_longest
 
+from ._validation import ensure_int, ensure_str
 from .codex import match_rating_codex
 
 
@@ -11,11 +12,20 @@ def _minimum_rating(length_sum: int) -> int:
     """Return the minimum rating required for a match given the code lengths.
 
     Args:
-        length_sum: The sum of the two codices' lengths.
+        length_sum: The sum of the two codices' lengths (non-negative).
 
     Returns:
         The MRA minimum rating threshold (2-5).
+
+    Raises:
+        TypeError: If *length_sum* is not an ``int``.
+        ValueError: If *length_sum* is negative.
     """
+    ensure_int(length_sum, "length_sum")
+    if length_sum < 0:
+        raise ValueError(
+            "length_sum must be non-negative, got %r" % length_sum
+        )
     if length_sum <= 4:
         return 5
     if length_sum <= 7:
@@ -35,7 +45,12 @@ def _rating_from_codices(codex1: str, codex2: str) -> int | None:
     Returns:
         The rating ``6 - max_unmatched``, or ``None`` if the codices' lengths
         differ by three or more (incomparable).
+
+    Raises:
+        TypeError: If either *codex1* or *codex2* is not a ``str``.
     """
+    ensure_str(codex1, "codex1")
+    ensure_str(codex2, "codex2")
     if abs(len(codex1) - len(codex2)) >= 3:
         return None
 
@@ -85,6 +100,8 @@ def match_rating(name1: str, name2: str) -> int | None:
         SpecialCharacterWarning: If punctuation or symbols are stripped from
             either name during encoding.
     """
+    ensure_str(name1, "name1")
+    ensure_str(name2, "name2")
     return _rating_from_codices(
         match_rating_codex(name1), match_rating_codex(name2)
     )
@@ -109,6 +126,8 @@ def match_rating_comparison(name1: str, name2: str) -> bool | None:
         SpecialCharacterWarning: If punctuation or symbols are stripped from
             either name during encoding.
     """
+    ensure_str(name1, "name1")
+    ensure_str(name2, "name2")
     codex1 = match_rating_codex(name1)
     codex2 = match_rating_codex(name2)
 

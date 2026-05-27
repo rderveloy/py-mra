@@ -5,6 +5,7 @@ from __future__ import annotations
 import unicodedata
 import warnings
 
+from ._validation import ensure_str
 from .exceptions import NumericInputError, SpecialCharacterWarning
 
 _VOWELS = frozenset("AEIOU")
@@ -19,7 +20,11 @@ def _to_ascii(name: str) -> str:
     Returns:
         *name* decomposed to ASCII with combining marks and non-ASCII
         characters dropped, e.g. ``"José"`` -> ``"Jose"``.
+
+    Raises:
+        TypeError: If *name* is not a ``str``.
     """
+    ensure_str(name, "name")
     decomposed = unicodedata.normalize("NFKD", name)
     stripped = "".join(
         char for char in decomposed if not unicodedata.combining(char)
@@ -57,8 +62,7 @@ def match_rating_codex(name: str) -> str:
     Warns:
         SpecialCharacterWarning: If punctuation or symbols are stripped.
     """
-    if not isinstance(name, str):
-        raise TypeError("name must be a str, got %r" % type(name).__name__)
+    ensure_str(name, "name")
 
     if any(unicodedata.category(char).startswith("N") for char in name):
         raise NumericInputError(

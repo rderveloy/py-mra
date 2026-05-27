@@ -7,6 +7,11 @@ from py_mra import (
     number_to_words,
     numbers_to_words,
 )
+from py_mra.numbers import (
+    _currency_words,
+    _force_token,
+    _words_under_1000,
+)
 
 
 @pytest.mark.parametrize(
@@ -345,11 +350,31 @@ def test_number_to_words_currency_strips_symbol(value, expected):
 
 # --- Unicode and injection-style inputs --------------------------------------
 
-def test_fullwidth_digits_are_handled():
-    assert classify("９０２１０") is NumberType.ZIP
-    assert numbers_to_words("Apt ９") == "Apt nine"
+def test_fullwidth_digits_are_treated_as_non_numeric():
+    # Only ASCII 0-9 count as digits; full-width digits are plain text.
+    with pytest.raises(ValueError):
+        classify("９０２１０")
+    assert numbers_to_words("Apt ９") == "Apt ９"
 
 
 def test_injection_like_text_without_digits_passes_through():
     payload = "'; DROP TABLE users; --"
     assert numbers_to_words(payload) == payload
+
+
+# --- private-helper validation -----------------------------------------------
+
+@pytest.mark.parametrize("bad", [0, 1000, -1])
+def test_words_under_1000_rejects_out_of_range(bad):
+    with pytest.raises(ValueError):
+        _words_under_1000(bad)
+
+
+def test_currency_words_rejects_unknown_symbol():
+    with pytest.raises(ValueError):
+        _currency_words("¥", "5", None)
+
+
+def test_force_token_rejects_non_number_type_kind():
+    with pytest.raises(TypeError):
+        _force_token("5", "cardinal")

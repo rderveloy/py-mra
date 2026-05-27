@@ -33,6 +33,16 @@ import re
 from collections.abc import Callable
 from enum import Enum
 
+from ._validation import (
+    ensure_digits,
+    ensure_has_digit,
+    ensure_int,
+    ensure_match,
+    ensure_str,
+)
+
+_DIGIT_CHARS = frozenset("0123456789")
+
 
 class NumberType(Enum):
     """The kind of number a value represents, used to pick a verbalization."""
@@ -78,7 +88,14 @@ def _words_under_1000(number: int) -> list[str]:
     Returns:
         A list of word tokens, e.g. ``221`` -> ``["two", "hundred", "twenty",
         "one"]``.
+
+    Raises:
+        TypeError: If *number* is not an ``int``.
+        ValueError: If *number* is not in the range 1..999.
     """
+    ensure_int(number, "number")
+    if not 1 <= number <= 999:
+        raise ValueError("number must be in 1..999, got %r" % number)
     words = []
     if number >= 100:
         words.append(_ONES[number // 100])
@@ -109,10 +126,7 @@ def int_to_cardinal(number: int) -> str:
     Raises:
         TypeError: If *number* is not an ``int`` (``bool`` is rejected).
     """
-    if isinstance(number, bool) or not isinstance(number, int):
-        raise TypeError(
-            "number must be an int, got %r" % type(number).__name__
-        )
+    ensure_int(number, "number")
     if number < 0:
         return "negative " + int_to_cardinal(-number)
     if number == 0:
@@ -147,7 +161,12 @@ def _digits_to_words(digits: str) -> str:
 
     Returns:
         The digits spoken individually, e.g. ``"90"`` -> ``"nine zero"``.
+
+    Raises:
+        TypeError: If *digits* is not a ``str``.
+        ValueError: If *digits* contains a non-``0``-``9`` character.
     """
+    ensure_digits(digits, "digits")
     return " ".join(_DIGIT_WORDS[digit] for digit in digits)
 
 
@@ -163,7 +182,12 @@ def _cardinal_from_digits(digit_string: str) -> str:
 
     Returns:
         The cardinal reading, e.g. ``"221"`` -> ``"two hundred twenty one"``.
+
+    Raises:
+        TypeError: If *digit_string* is not a ``str``.
+        ValueError: If *digit_string* contains a non-``0``-``9`` character.
     """
+    ensure_digits(digit_string, "digit_string")
     if len(digit_string) > len(_SCALES) * 3:
         return _digits_to_words(digit_string)
     return int_to_cardinal(int(digit_string or "0"))
@@ -178,10 +202,15 @@ def _spell_identifier(ident: str) -> str:
 
     Returns:
         The identifier read out, e.g. ``"4B"`` -> ``"four B"``, ``"200"`` ->
-        ``"two zero zero"``.
+        ``"two zero zero"``. Only ASCII digits are spoken; other characters
+        besides ASCII letters are dropped.
+
+    Raises:
+        TypeError: If *ident* is not a ``str``.
     """
+    ensure_str(ident, "ident")
     tokens = []
-    for part in re.findall(r"\d+|[A-Za-z]+", ident):
+    for part in re.findall(r"[0-9]+|[A-Za-z]+", ident):
         if part.isdigit():
             tokens.extend(_DIGIT_WORDS[digit] for digit in part)
         else:
@@ -200,7 +229,13 @@ def _pad(match: re.Match, words: str) -> str:
         *words* with a leading and/or trailing space added where the original
         run touched a letter, so ``"221B"`` becomes ``"... one B"`` not
         ``"... oneB"``.
+
+    Raises:
+        TypeError: If *match* is not a :class:`re.Match`, or *words* is not a
+            ``str``.
     """
+    ensure_match(match, "match")
+    ensure_str(words, "words")
     source = match.string
     if match.start() > 0 and source[match.start() - 1].isalpha():
         words = " " + words
@@ -220,7 +255,13 @@ def _say_cardinal(value: str) -> str:
 
     Returns:
         The cardinal reading, e.g. ``"1,000"`` -> ``"one thousand"``.
+
+    Raises:
+        TypeError: If *value* is not a ``str``.
+        ValueError: If *value* has no digit, or a non-digit, non-comma
+            character.
     """
+    ensure_has_digit(value, "value")
     return _cardinal_from_digits(value.replace(",", ""))
 
 
@@ -233,12 +274,18 @@ def _say_decimal(value: str) -> str:
 
     Returns:
         The reading, e.g. ``"3.14"`` -> ``"three point one four"``.
+
+    Raises:
+        TypeError: If *value* is not a ``str``.
+        ValueError: If *value* has no digit, or a non-digit character other
+            than a single decimal point and commas.
     """
+    ensure_has_digit(value, "value")
     if "." not in value:
         return _say_cardinal(value)
     whole, fraction = value.split(".", 1)
     whole_words = _cardinal_from_digits(whole.replace(",", ""))
-    fraction_words = _digits_to_words(re.sub(r"\D", "", fraction))
+    fraction_words = _digits_to_words(fraction)
     return "%s point %s" % (whole_words, fraction_words)
 
 
@@ -252,7 +299,12 @@ def _say_currency(value: str) -> str:
     Returns:
         The money reading, e.g. ``"$19.99"`` -> ``"nineteen dollars and ninety
         nine cents"``.
+
+    Raises:
+        TypeError: If *value* is not a ``str``.
+        ValueError: If *value* contains no digit.
     """
+    ensure_has_digit(value, "value")
     value = value.strip()
     symbol = "$"
     if value[:1] in _CURRENCY:
@@ -262,8 +314,8 @@ def _say_currency(value: str) -> str:
         major, minor = value.split(".", 1)
     else:
         major, minor = value, ""
-    major = re.sub(r"\D", "", major) or "0"
-    minor = re.sub(r"\D", "", minor) if minor else None
+    major = re.sub(r"[^0-9]", "", major) or "0"
+    minor = re.sub(r"[^0-9]", "", minor) if minor else None
     return _currency_words(symbol, major, minor)
 
 
@@ -280,7 +332,18 @@ def _currency_words(
     Returns:
         The reading, with singular/plural units and an "and" joining the major
         and minor parts when both are present.
+
+    Raises:
+        TypeError: If *symbol* or *major_str* is not a ``str``, or *minor_str*
+            is neither a ``str`` nor ``None``.
+        ValueError: If *symbol* is not a supported currency symbol.
     """
+    ensure_str(symbol, "symbol")
+    ensure_str(major_str, "major_str")
+    if minor_str is not None:
+        ensure_str(minor_str, "minor_str")
+    if symbol not in _CURRENCY:
+        raise ValueError("symbol is not a known currency: %r" % symbol)
     # Strip separators and leading zeros so the major part is compared and read
     # without int(), which keeps oversized amounts from raising ValueError.
     major_digits = major_str.replace(",", "").lstrip("0") or "0"
@@ -310,8 +373,13 @@ def _say_phone(value: str) -> str:
     Returns:
         The digits spoken individually, e.g. ``"555-1234"`` -> ``"five five
         five one two three four"``.
+
+    Raises:
+        TypeError: If *value* is not a ``str``.
+        ValueError: If *value* contains no digit.
     """
-    words = _digits_to_words(re.sub(r"\D", "", value))
+    ensure_has_digit(value, "value")
+    words = _digits_to_words(re.sub(r"[^0-9]", "", value))
     if value.lstrip().startswith("+"):
         words = "plus " + words
     return words
@@ -326,8 +394,13 @@ def _say_zip(value: str) -> str:
     Returns:
         The digits spoken individually, e.g. ``"90210"`` -> ``"nine zero two
         one zero"``.
+
+    Raises:
+        TypeError: If *value* is not a ``str``.
+        ValueError: If *value* contains no digit.
     """
-    return _digits_to_words(re.sub(r"\D", "", value))
+    ensure_has_digit(value, "value")
+    return _digits_to_words(re.sub(r"[^0-9]", "", value))
 
 
 def _say_unit(value: str) -> str:
@@ -340,7 +413,12 @@ def _say_unit(value: str) -> str:
     Returns:
         The identifier read out with digits spoken singly and letters kept,
         e.g. ``"Apt 4B"`` -> ``"Apt four B"``.
+
+    Raises:
+        TypeError: If *value* is not a ``str``.
+        ValueError: If *value* contains no digit.
     """
+    ensure_has_digit(value, "value")
     return _spell_identifier(value)
 
 
@@ -358,35 +436,65 @@ _CONVERTERS: dict[NumberType, Callable[[str], str]] = {
 # Each takes a regex match for a numeric run and returns the padded reading.
 
 def _currency_repl(match: re.Match) -> str:
-    """Replace a matched currency run (groups ``sym``/``major``/``minor``)."""
+    """Replace a matched currency run (groups ``sym``/``major``/``minor``).
+
+    Raises:
+        TypeError: If *match* is not a :class:`re.Match`.
+    """
+    ensure_match(match, "match")
     return _pad(match, _currency_words(
         match.group("sym"), match.group("major"), match.group("minor")))
 
 
 def _unit_repl(match: re.Match) -> str:
-    """Replace a matched unit run (groups ``desig`` and ``id``)."""
+    """Replace a matched unit run (groups ``desig`` and ``id``).
+
+    Raises:
+        TypeError: If *match* is not a :class:`re.Match`.
+    """
+    ensure_match(match, "match")
     designator = match.group("desig").rstrip()
     identifier = _spell_identifier(match.group("id"))
     return _pad(match, "%s %s" % (designator, identifier))
 
 
 def _zip_repl(match: re.Match) -> str:
-    """Replace a matched zip-code run."""
+    """Replace a matched zip-code run.
+
+    Raises:
+        TypeError: If *match* is not a :class:`re.Match`.
+    """
+    ensure_match(match, "match")
     return _pad(match, _say_zip(match.group(0)))
 
 
 def _phone_repl(match: re.Match) -> str:
-    """Replace a matched phone-number run."""
+    """Replace a matched phone-number run.
+
+    Raises:
+        TypeError: If *match* is not a :class:`re.Match`.
+    """
+    ensure_match(match, "match")
     return _pad(match, _say_phone(match.group(0)))
 
 
 def _decimal_repl(match: re.Match) -> str:
-    """Replace a matched decimal run."""
+    """Replace a matched decimal run.
+
+    Raises:
+        TypeError: If *match* is not a :class:`re.Match`.
+    """
+    ensure_match(match, "match")
     return _pad(match, _say_decimal(match.group(0)))
 
 
 def _integer_repl(match: re.Match) -> str:
-    """Replace a matched integer run."""
+    """Replace a matched integer run.
+
+    Raises:
+        TypeError: If *match* is not a :class:`re.Match`.
+    """
+    ensure_match(match, "match")
     return _pad(match, _say_cardinal(match.group(0)))
 
 
@@ -396,7 +504,8 @@ _CURRENCY_RE = re.compile(
     r"(?P<sym>[$£€])\s?"
     # comma-grouped form (requires a comma) or a plain digit run
     r"(?P<major>\d{1,3}(?:,\d{3})+|\d+)"
-    r"(?:\.(?P<minor>\d{1,2}))?"
+    r"(?:\.(?P<minor>\d{1,2}))?",
+    re.ASCII,  # \d is ASCII 0-9 only; Unicode digits stay as plain text
 )
 
 # Secondary-address designators (apartment, unit, suite, box, "#", ...)
@@ -406,12 +515,12 @@ _UNIT_RE = re.compile(
     r"(?P<desig>#|\b(?:apartment|apt|unit|suite|ste|building|bldg|floor|fl|"
     r"room|rm|lot|space|spc|dept|trailer|trlr|box|number|no)\b\.?)\s*"
     r"(?P<id>[0-9A-Za-z]*[0-9][0-9A-Za-z]*)",
-    re.IGNORECASE,
+    re.IGNORECASE | re.ASCII,
 )
 
 # US zip code: an isolated run of exactly five digits, optionally + four.
 # Read digit by digit, as zip codes are always spoken.
-_ZIP_RE = re.compile(r"(?<!\d)\d{5}(?:-\d{4})?(?!\d)")
+_ZIP_RE = re.compile(r"(?<!\d)\d{5}(?:-\d{4})?(?!\d)", re.ASCII)
 
 # Phone numbers, detected by shape rather than digit count so that genuine
 # large integers (e.g. 1000000) are still read as cardinals.
@@ -423,18 +532,18 @@ _PHONE_RE = re.compile(
       | (?<!\d)\d{3}[\s.\-]\d{4}(?!\d)         # 7-digit local 555-1234
     )(?![\w])
     """,
-    re.VERBOSE,
+    re.VERBOSE | re.ASCII,
 )
 
-_DECIMAL_RE = re.compile(r"(?<!\d)(\d+)\.(\d+)(?!\d)")
-_INTEGER_RE = re.compile(r"\d[\d,]*\d|\d")
+_DECIMAL_RE = re.compile(r"(?<!\d)(\d+)\.(\d+)(?!\d)", re.ASCII)
+_INTEGER_RE = re.compile(r"\d[\d,]*\d|\d", re.ASCII)
 
 
 # --- classification of a single field value ----------------------------------
 
-_VALUE_ZIP_RE = re.compile(r"\d{5}(?:-\d{4})?")
-_VALUE_DECIMAL_RE = re.compile(r"\d+\.\d+")
-_VALUE_PHONE_RE = re.compile(r"\+?[\d().\-\s]*\d[\d().\-\s]*")
+_VALUE_ZIP_RE = re.compile(r"\d{5}(?:-\d{4})?", re.ASCII)
+_VALUE_DECIMAL_RE = re.compile(r"\d+\.\d+", re.ASCII)
+_VALUE_PHONE_RE = re.compile(r"\+?[\d().\-\s]*\d[\d().\-\s]*", re.ASCII)
 
 
 def _looks_like_phone(value: str) -> bool:
@@ -446,10 +555,14 @@ def _looks_like_phone(value: str) -> bool:
     Returns:
         ``True`` if *value* is digits and phone separators only, has at least
         seven digits, and carries a separator or leading ``+``.
+
+    Raises:
+        TypeError: If *value* is not a ``str``.
     """
+    ensure_str(value, "value")
     if not _VALUE_PHONE_RE.fullmatch(value):
         return False
-    digits = re.sub(r"\D", "", value)
+    digits = re.sub(r"[^0-9]", "", value)
     return len(digits) >= 7 and bool(re.search(r"[().\-\s]|^\+", value))
 
 
@@ -468,15 +581,11 @@ def classify(value: str) -> NumberType:
 
     Raises:
         TypeError: If *value* is not a ``str``.
-        ValueError: If *value* contains no digit, so there is nothing to
+        ValueError: If *value* contains no ASCII digit, so there is nothing to
             classify.
     """
-    if not isinstance(value, str):
-        raise TypeError("value must be a str, got %r" % type(value).__name__)
-
+    ensure_has_digit(value, "value")
     stripped = value.strip()
-    if not any(char.isdigit() for char in stripped):
-        raise ValueError("value contains no digit to classify: %r" % value)
     if stripped[:1] in _CURRENCY:
         return NumberType.CURRENCY
     if _VALUE_ZIP_RE.fullmatch(stripped):
@@ -512,8 +621,7 @@ def number_to_words(value: str, kind: NumberType | None = None) -> str:
             :class:`NumberType` nor ``None``.
         ValueError: If *value* contains no digit (nothing to convert).
     """
-    if not isinstance(value, str):
-        raise TypeError("value must be a str, got %r" % type(value).__name__)
+    ensure_str(value, "value")
     if kind is None:
         kind = classify(value)  # raises ValueError when there is no digit
     else:
@@ -521,8 +629,7 @@ def number_to_words(value: str, kind: NumberType | None = None) -> str:
             raise TypeError(
                 "kind must be a NumberType or None, got %r" % (kind,)
             )
-        if not any(char.isdigit() for char in value):
-            raise ValueError("value contains no digit to convert: %r" % value)
+        ensure_has_digit(value, "value")
     return _CONVERTERS[kind](value)
 
 
@@ -542,9 +649,16 @@ def _force_token(token: str, kind: NumberType) -> str:
     Returns:
         The token unchanged if it carries no digit, otherwise its spoken form
         with the original surrounding punctuation restored.
+
+    Raises:
+        TypeError: If *token* is not a ``str``, or *kind* is not a
+            :class:`NumberType`.
     """
+    ensure_str(token, "token")
+    if not isinstance(kind, NumberType):
+        raise TypeError("kind must be a NumberType, got %r" % (kind,))
     prefix, core, suffix = _TOKEN_EDGE_RE.match(token).groups()
-    if not any(char.isdigit() for char in core):
+    if not any(char in _DIGIT_CHARS for char in core):
         return token
     return prefix + number_to_words(core, kind) + suffix
 
@@ -574,8 +688,7 @@ def numbers_to_words(text: str, kind: NumberType | None = None) -> str:
         TypeError: If *text* is not a ``str``, or *kind* is neither a
             :class:`NumberType` nor ``None``.
     """
-    if not isinstance(text, str):
-        raise TypeError("text must be a str, got %r" % type(text).__name__)
+    ensure_str(text, "text")
     if kind is not None:
         if not isinstance(kind, NumberType):
             raise TypeError(
