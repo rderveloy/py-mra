@@ -155,13 +155,34 @@ pytest
 
 ## License
 
-[![CC BY-NC-SA 4.0][cc-by-nc-sa-shield]][cc-by-nc-sa]
+[![License: AGPL v3+][agpl-shield]][agpl-license]
 
-This work is licensed under a
-[Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License][cc-by-nc-sa].
+Copyright (C) 2026 Robert Derveloy.
 
-[![CC BY-NC-SA 4.0][cc-by-nc-sa-image]][cc-by-nc-sa]
+py-mra is free software: you can redistribute it and/or modify it under the
+terms of the [GNU Affero General Public License][agpl-license] as published by
+the Free Software Foundation, either version 3 of the License, or (at your
+option) any later version.
 
-[cc-by-nc-sa]: http://creativecommons.org/licenses/by-nc-sa/4.0/
-[cc-by-nc-sa-image]: https://licensebuttons.net/l/by-nc-sa/4.0/88x31.png
-[cc-by-nc-sa-shield]: https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey.svg
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+details. You should have received a copy of the license along with this
+program; if not, see <https://www.gnu.org/licenses/>.
+
+[agpl-license]: https://www.gnu.org/licenses/agpl-3.0.html
+[agpl-shield]: https://img.shields.io/badge/License-AGPL%20v3%2B-blue.svg
+
+## Commercial licensing
+
+py-mra is available under AGPL-3.0-or-later for non-commercial use, academic
+and educational use, internal use that does not trigger AGPL's
+network-distribution terms, and any project willing to comply with AGPL's
+share-alike requirements (including the §13 obligation to offer source to
+users of a modified network service).
+
+For a commercial license that releases you from AGPL's terms — typically
+needed when embedding py-mra in a closed-source product or offering a modified
+version as a hosted service without releasing your stack — contact
+`[contact@example.com]`.
+

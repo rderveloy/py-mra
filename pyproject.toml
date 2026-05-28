@@ -8,8 +8,17 @@ version = "0.1.0"
 description = "Python implementation of the Match Rating Approach phonetic algorithm."
 readme = "README.md"
 requires-python = ">=3.8"
-license = { text = "CC-BY-NC-SA-4.0" }
+license = { text = "AGPL-3.0-or-later" }
 keywords = ["phonetic", "match-rating-approach", "mra", "name-matching", "fuzzy"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Text Processing :: Linguistic",
+]
 dependencies = []
 
 [project.optional-dependencies]
