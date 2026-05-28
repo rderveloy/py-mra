@@ -184,5 +184,5 @@ users of a modified network service).
 For a commercial license that releases you from AGPL's terms — typically
 needed when embedding py-mra in a closed-source product or offering a modified
 version as a hosted service without releasing your stack — contact
-`[contact@example.com]`.
+[pymra.step200@aleeas.com](mailto:pymra.step200@aleeas.com).
 

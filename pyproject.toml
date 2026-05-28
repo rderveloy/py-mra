@@ -9,6 +9,7 @@ description = "Python implementation of the Match Rating Approach phonetic algor
 readme = "README.md"
 requires-python = ">=3.8"
 license = { text = "AGPL-3.0-or-later" }
+authors = [{ name = "Robert Derveloy", email = "pymra.step200@aleeas.com" }]
 keywords = ["phonetic", "match-rating-approach", "mra", "name-matching", "fuzzy"]
 classifiers = [
     "Development Status :: 4 - Beta",
