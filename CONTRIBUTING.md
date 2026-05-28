@@ -16,33 +16,34 @@ the Contributor License Agreement (CLA) below is for.
 
 ## Contributor License Agreement (CLA)
 
-By submitting a pull request, you agree that:
+To make the dual-licensing model work, the maintainer needs broad
+relicensing rights for every contribution. The agreements that grant
+those rights live in [`cla/`](./cla/):
 
-1. You keep the copyright to your contribution.
-2. You grant the project maintainer, Robert Derveloy, a perpetual,
-   worldwide, non-exclusive, royalty-free, irrevocable license to
-   reproduce, prepare derivative works of, publicly display, publicly
-   perform, sublicense, and distribute your contribution — and works
-   derived from it — under **any license terms**, including AGPL-3.0,
-   any successor open-source license, and proprietary / commercial
-   licenses.
-3. To the extent any patents you own read on your contribution, you grant
-   the maintainer and downstream users of the project the same perpetual,
-   worldwide, royalty-free license under those patents.
-4. Your contribution is your original work, or you have the right to
-   submit it under these terms, and you are not aware of any third-party
-   claims, liens, or agreements that conflict.
-5. If you contribute on behalf of an employer, your employer has either
-   waived rights in your contribution or authorized you to submit it.
+- **[Individual CLA](./cla/individual.md)** — for contributions you
+  make on your own behalf.
+- **[Corporate CLA](./cla/corporate.md)** — for contributions made on
+  behalf of an employer or other entity. The entity signs once and lists
+  its authorized contributors.
 
-This is a condensed summary of the
-[Harmony Individual Contributor License Agreement](https://harmonyagreements.org/),
-"any license" option. Once GitHub's CLA-tracking app is set up on the
-repository, you will be asked to confirm this agreement on your first PR;
-until then, please include a line like the following in your PR description
-so the agreement is on the record:
+[`cla/README.md`](./cla/README.md) explains which one applies and gives
+a plain-English summary of what you are agreeing to. Skim that first;
+read the actual agreement before signing.
 
-> I have read and agree to the CLA in CONTRIBUTING.md.
+### How to sign
+
+Once the CLA-tracking bot is installed on the repository, it will
+prompt new contributors to confirm agreement on their first pull
+request and block the merge until they do. The bot's signature record
+is authoritative once it is in place.
+
+Until then, please include a line in your pull request description
+along the lines of:
+
+> I have read [`cla/individual.md`](./cla/individual.md) (or
+> [`cla/corporate.md`](./cla/corporate.md)) and agree to its terms.
+
+That keeps pre-bot contributions on the record as license-compatible.
 
 ## Code conventions
 
