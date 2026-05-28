@@ -36,7 +36,6 @@ def test_long_name_keeps_first_and_last_three():
 
 
 def test_adjacent_duplicates_collapse():
-    # The two L's collapse to one.
     assert "LL" not in match_rating_codex("Hollow")
 
 
@@ -51,7 +50,9 @@ def test_numeric_input_raises():
 
 
 def test_unicode_numeric_input_raises():
-    # Full-width digit and a fraction glyph are both rejected.
+    # Both are Unicode category N (numeric) characters; rejection must cover
+    # the whole category, not just ASCII 0-9, or callers leak a meaningless
+    # codex when they paste in localized text.
     with pytest.raises(NumericInputError):
         match_rating_codex("Apt ３")
     with pytest.raises(NumericInputError):
@@ -67,7 +68,7 @@ def test_special_characters_warn():
 def test_whitespace_does_not_warn():
     with warnings.catch_warnings():
         warnings.simplefilter("error", SpecialCharacterWarning)
-        match_rating_codex("van der Berg")  # spaces only -> no warning
+        match_rating_codex("van der Berg")
 
 
 def test_non_string_raises_type_error():
@@ -85,7 +86,8 @@ def test_name_with_no_letters_returns_empty_with_warning():
 
 
 def test_injection_like_punctuation_is_stripped():
-    # No digits, so no NumericInputError; punctuation is stripped (and warned).
+    # Injection-shaped strings carry only letters and punctuation, so the
+    # encoder should strip and warn — never crash or echo the payload back.
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", SpecialCharacterWarning)
         code = match_rating_codex("Robert'); DROP--")

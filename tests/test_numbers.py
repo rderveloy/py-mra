@@ -8,6 +8,10 @@ from py_mra import (
     numbers_to_words,
 )
 from py_mra.numbers import (
+    _CURRENCY,
+    _CONVERTERS,
+    _DIGIT_WORDS,
+    _SCALES,
     _currency_words,
     _force_token,
     _words_under_1000,
@@ -122,25 +126,27 @@ def test_unit_designators_digit_by_digit(field, expected):
 
 
 def test_house_number_stays_cardinal():
-    # An unlabeled leading number is a quantity, read as a cardinal.
+    # Without a designator label, the leading number is a quantity (house
+    # number), not an identifier; cardinal preserves that distinction.
     assert numbers_to_words("221 Baker Street") == (
         "two hundred twenty one Baker Street"
     )
 
 
 def test_full_address_line():
+    # Real address lines mix several conventions in one string; the scanner
+    # must apply the right rule to each run rather than blanket-converting.
     address = "221B Baker St Apt 5, London SW1A 1AA"
     spoken = numbers_to_words(address)
-    # house number read as a cardinal, with the unit letter kept
     assert "two hundred twenty one B" in spoken
-    # apartment identifier read digit by digit
     assert "Apt five" in spoken
-    # no digits remain, so the result is safe to encode
+    # Digit-free output is the whole point — it's the encoder's prerequisite.
     assert not any(char.isdigit() for char in spoken)
 
 
 def test_designator_requires_a_number():
-    # "no" without a following number must not be treated as a designator.
+    # "no" appears in plain English; matching it as a designator without a
+    # following identifier would mangle ordinary text.
     assert numbers_to_words("no thanks") == "no thanks"
 
 
@@ -180,10 +186,12 @@ def test_number_to_words_uses_classify_when_no_kind():
             "twelve thousand three hundred forty five",
         ),
         ("12", NumberType.UNIT, "one two"),
-        # a symbol-less value forced to currency defaults to dollars
+        # Pins the documented default: an unmarked currency value is dollars,
+        # which is the only sensible choice without locale context.
         ("5", NumberType.CURRENCY, "five dollars"),
         ("3.5", NumberType.CURRENCY, "three dollars and fifty cents"),
-        # no decimal point, so it falls back to a cardinal reading
+        # Forced DECIMAL with no decimal point falls back to cardinal so
+        # mis-classified inputs still produce a sensible reading.
         ("66", NumberType.DECIMAL, "sixty six"),
     ],
 )
@@ -202,7 +210,8 @@ def test_classify_rejects_non_string():
 
 
 def test_scanner_kind_override_forces_type():
-    # Both numbers forced to zip-style digit-by-digit.
+    # An explicit kind must override the heuristic for *every* digit token —
+    # the second number would otherwise be auto-detected as a cardinal.
     assert numbers_to_words("code 90210 ref 77", NumberType.ZIP) == (
         "code nine zero two one zero ref seven seven"
     )
@@ -222,8 +231,6 @@ def test_scanner_rejects_bad_kind():
     with pytest.raises(TypeError):
         numbers_to_words("5", "cardinal")
 
-
-# --- input validation --------------------------------------------------------
 
 @pytest.mark.parametrize("bad", ["5", None, b"5", 3.0])
 def test_int_to_cardinal_rejects_non_int(bad):
@@ -264,12 +271,11 @@ def test_number_to_words_requires_a_digit_when_classifying():
 
 
 def test_number_to_words_requires_a_digit_with_explicit_kind():
-    # An explicit kind still must not be handed a value with no digit.
+    # Supplying a kind doesn't bypass usability — without a digit there is
+    # nothing to convert and the helper would silently emit nonsense.
     with pytest.raises(ValueError):
         number_to_words("abc", NumberType.CURRENCY)
 
-
-# --- large / oversized numbers -----------------------------------------------
 
 @pytest.mark.parametrize(
     "number, expected",
@@ -283,12 +289,14 @@ def test_int_to_cardinal_negative(number, expected):
 
 
 def test_int_to_cardinal_beyond_largest_scale_reads_digits():
-    # 10**24 is past "quintillion", so it is read digit by digit.
+    # No name exists past "quintillion", so the fallback path reads digits
+    # one by one; this exercises that branch (originally buggy).
     assert int_to_cardinal(10 ** 24) == " ".join(["one"] + ["zero"] * 24)
 
 
 def test_oversized_token_reads_digit_by_digit_without_raising():
-    # Longer than CPython's int<->str cap (4300): must not raise ValueError.
+    # CPython caps int<->str at 4300 digits; oversized tokens used to leak
+    # that raw ValueError, so this pins the safe digit-by-digit fallback.
     token = "9" * 4400
     assert numbers_to_words(token) == " ".join(["nine"] * 4400)
 
@@ -304,8 +312,6 @@ def test_oversized_currency_reads_amount_digit_by_digit():
     spoken = numbers_to_words("$" + "9" * 25)
     assert spoken == " ".join(["nine"] * 25) + " dollars"
 
-
-# --- currency edge cases -----------------------------------------------------
 
 @pytest.mark.parametrize(
     "value, expected",
@@ -348,21 +354,22 @@ def test_number_to_words_currency_strips_symbol(value, expected):
     assert number_to_words(value, NumberType.CURRENCY) == expected
 
 
-# --- Unicode and injection-style inputs --------------------------------------
-
 def test_fullwidth_digits_are_treated_as_non_numeric():
-    # Only ASCII 0-9 count as digits; full-width digits are plain text.
+    # Limiting "digit" to ASCII keeps the digit-by-digit map consistent and
+    # prevents Unicode digits from reaching it (which would crash); the
+    # tradeoff is that they pass through as plain text.
     with pytest.raises(ValueError):
         classify("９０２１０")
     assert numbers_to_words("Apt ９") == "Apt ９"
 
 
 def test_injection_like_text_without_digits_passes_through():
+    # The scanner does pattern replacement, not interpretation, so an
+    # injection-shaped payload without digits must be returned untouched —
+    # no execution, no escaping, no mutation.
     payload = "'; DROP TABLE users; --"
     assert numbers_to_words(payload) == payload
 
-
-# --- private-helper validation -----------------------------------------------
 
 @pytest.mark.parametrize("bad", [0, 1000, -1])
 def test_words_under_1000_rejects_out_of_range(bad):
@@ -378,3 +385,20 @@ def test_currency_words_rejects_unknown_symbol():
 def test_force_token_rejects_non_number_type_kind():
     with pytest.raises(TypeError):
         _force_token("5", "cardinal")
+
+
+@pytest.mark.parametrize("table", [_CURRENCY, _CONVERTERS, _DIGIT_WORDS])
+def test_mapping_lookup_tables_are_read_only(table):
+    # A caller reaching into module internals must not be able to corrupt the
+    # shared lookup tables — every subsequent conversion would silently use
+    # the poisoned entry. MappingProxyType makes that impossible at the
+    # boundary rather than relying on convention.
+    with pytest.raises(TypeError):
+        table["nope"] = "anything"
+
+
+def test_scale_table_is_immutable():
+    # Tuple semantics rule out resize/replace-by-index mistakes that a list
+    # would silently allow.
+    with pytest.raises(TypeError):
+        _SCALES[0] = "broken"

@@ -30,8 +30,9 @@ Two levels of API are provided:
 from __future__ import annotations
 
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from enum import Enum
+from types import MappingProxyType
 
 from ._validation import (
     ensure_digits,
@@ -45,38 +46,54 @@ _DIGIT_CHARS = frozenset("0123456789")
 
 
 class NumberType(Enum):
-    """The kind of number a value represents, used to pick a verbalization."""
+    """The kind of number a value represents, used to pick a verbalization.
 
-    CARDINAL = "cardinal"   # a quantity: "66" -> "sixty six"
-    DECIMAL = "decimal"     # "3.14" -> "three point one four"
-    CURRENCY = "currency"   # "$19.99" -> "nineteen dollars and ..."
-    PHONE = "phone"         # "555-1234" -> "five five five one two three four"
-    ZIP = "zip"             # "90210" -> "nine zero two one zero"
-    UNIT = "unit"           # an identifier: "4B" -> "four B"
+    The styles are: ``CARDINAL`` reads a quantity as words (``"66"`` ->
+    ``"sixty six"``); ``DECIMAL`` reads the whole as a cardinal and the
+    fraction digit by digit (``"3.14"`` -> ``"three point one four"``);
+    ``CURRENCY`` formats money with unit names (``"$19.99"`` -> ``"nineteen
+    dollars and ninety nine cents"``); ``PHONE`` reads the digits individually
+    (``"555-1234"`` -> ``"five five five one two three four"``);
+    ``ZIP`` likewise reads a postal code's digits (``"90210"`` -> ``"nine zero
+    two one zero"``);
+    and ``UNIT`` reads an identifier alphanumerically, keeping letters and
+    spelling digits (``"4B"`` -> ``"four B"``).
+    """
+
+    CARDINAL = "cardinal"
+    DECIMAL = "decimal"
+    CURRENCY = "currency"
+    PHONE = "phone"
+    ZIP = "zip"
+    UNIT = "unit"
 
 
-_ONES = [
+_ONES = (
     "zero", "one", "two", "three", "four", "five", "six", "seven", "eight",
     "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen",
     "sixteen", "seventeen", "eighteen", "nineteen",
-]
-_TENS = [
+)
+_TENS = (
     "", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy",
     "eighty", "ninety",
-]
-_SCALES = [
+)
+_SCALES = (
     "", "thousand", "million", "billion", "trillion", "quadrillion",
     "quintillion",
-]
+)
 
-_DIGIT_WORDS = {str(digit): _ONES[digit] for digit in range(10)}
+# Tuples and MappingProxyType keep the lookup tables read-only: a caller
+# reaching in to "fix" a name (e.g. mutating _CURRENCY["$"]) would silently
+# corrupt every subsequent conversion, so close that hole at the boundary.
+_DIGIT_WORDS = MappingProxyType(
+    {str(digit): _ONES[digit] for digit in range(10)}
+)
 
-# Currency symbol -> (major unit singular/plural, minor unit singular/plural).
-_CURRENCY = {
+_CURRENCY = MappingProxyType({
     "$": (("dollar", "dollars"), ("cent", "cents")),
-    "£": (("pound", "pounds"), ("penny", "pence")),  # GBP
-    "€": (("euro", "euros"), ("cent", "cents")),     # EUR
-}
+    "£": (("pound", "pounds"), ("penny", "pence")),
+    "€": (("euro", "euros"), ("cent", "cents")),
+})
 
 
 def _words_under_1000(number: int) -> list[str]:
@@ -139,7 +156,9 @@ def int_to_cardinal(number: int) -> str:
         remaining //= 1000
 
     if len(chunks) > len(_SCALES):
-        # Beyond the largest named scale; read the digits one by one.
+        # No word exists for groups beyond the largest named scale, so fall
+        # back to reading the digits one by one. (This also sidesteps
+        # CPython's int<->str length cap on very long inputs.)
         return _digits_to_words(str(number))
 
     parts = []
@@ -243,8 +262,6 @@ def _pad(match: re.Match, words: str) -> str:
         words = words + " "
     return words
 
-
-# --- value-level converters: operate on a single numeric string -------------
 
 def _say_cardinal(value: str) -> str:
     """Convert a (comma-grouped) integer string to cardinal words.
@@ -355,7 +372,9 @@ def _currency_words(
         parts.append("%s %s" % (_cardinal_from_digits(major_digits), unit))
 
     if minor_str:
-        cents = int(minor_str.ljust(2, "0")[:2])  # ".5" -> 50, ".05" -> 5
+        # ".5" should mean 50 cents (half a dollar) per common convention,
+        # not 5 cents, so pad to two digits before parsing.
+        cents = int(minor_str.ljust(2, "0")[:2])
         if cents:
             unit = minor_sing if cents == 1 else minor_plur
             parts.append("%s %s" % (int_to_cardinal(cents), unit))
@@ -422,18 +441,15 @@ def _say_unit(value: str) -> str:
     return _spell_identifier(value)
 
 
-_CONVERTERS: dict[NumberType, Callable[[str], str]] = {
+_CONVERTERS: Mapping[NumberType, Callable[[str], str]] = MappingProxyType({
     NumberType.CARDINAL: _say_cardinal,
     NumberType.DECIMAL: _say_decimal,
     NumberType.CURRENCY: _say_currency,
     NumberType.PHONE: _say_phone,
     NumberType.ZIP: _say_zip,
     NumberType.UNIT: _say_unit,
-}
+})
 
-
-# --- scanner replacement callbacks (auto-detect path) ------------------------
-# Each takes a regex match for a numeric run and returns the padded reading.
 
 def _currency_repl(match: re.Match) -> str:
     """Replace a matched currency run (groups ``sym``/``major``/``minor``).
@@ -498,19 +514,19 @@ def _integer_repl(match: re.Match) -> str:
     return _pad(match, _say_cardinal(match.group(0)))
 
 
-# Currency: a supported symbol, optional space, a (comma-grouped) amount, and
-# an optional fractional part.
 _CURRENCY_RE = re.compile(
     r"(?P<sym>[$£€])\s?"
-    # comma-grouped form (requires a comma) or a plain digit run
+    # Requiring a comma in the grouped form is what prevents a plain
+    # 4+ digit number ("$1234") from matching only its 3-digit prefix.
     r"(?P<major>\d{1,3}(?:,\d{3})+|\d+)"
     r"(?:\.(?P<minor>\d{1,2}))?",
-    re.ASCII,  # \d is ASCII 0-9 only; Unicode digits stay as plain text
+    # ASCII so Unicode/full-width digits don't reach the ASCII digit map.
+    re.ASCII,
 )
 
-# Secondary-address designators (apartment, unit, suite, box, "#", ...)
-# followed by an identifier with at least one digit. The identifier is read
-# digit by digit so alphanumerics like "4B" decompose cleanly.
+# Match a designator label plus an alphanumeric identifier (containing at
+# least one digit). Reading those digits singly is what lets mixed forms
+# like "4B" decompose cleanly into letters we keep and digits we spell.
 _UNIT_RE = re.compile(
     r"(?P<desig>#|\b(?:apartment|apt|unit|suite|ste|building|bldg|floor|fl|"
     r"room|rm|lot|space|spc|dept|trailer|trlr|box|number|no)\b\.?)\s*"
@@ -518,18 +534,21 @@ _UNIT_RE = re.compile(
     re.IGNORECASE | re.ASCII,
 )
 
-# US zip code: an isolated run of exactly five digits, optionally + four.
-# Read digit by digit, as zip codes are always spoken.
+# Isolated five-digit run (or zip+4). Anchoring with lookarounds is what
+# prevents grabbing a five-digit slice out of a longer numeric token.
 _ZIP_RE = re.compile(r"(?<!\d)\d{5}(?:-\d{4})?(?!\d)", re.ASCII)
 
-# Phone numbers, detected by shape rather than digit count so that genuine
-# large integers (e.g. 1000000) are still read as cardinals.
+# Detect phones by shape (separators / parens / leading +), not by digit
+# count, so a plain large integer such as 1000000 is still read as a
+# cardinal rather than mistaken for a phone number. Each alternative covers
+# a NANP/international form commonly seen in user-supplied data; the verbose
+# labels are kept so the pattern stays scannable as it grows.
 _PHONE_RE = re.compile(
     r"""
     (?<![\w])(?:
         \+\d[\d\s().\-]{5,}\d                  # international: + then digits
-      | \(?\d{3}\)?[\s.\-]\d{3}[\s.\-]\d{4}    # 10-digit (555) 123-4567
-      | (?<!\d)\d{3}[\s.\-]\d{4}(?!\d)         # 7-digit local 555-1234
+      | \(?\d{3}\)?[\s.\-]\d{3}[\s.\-]\d{4}    # 10-digit, (555) 123-4567
+      | (?<!\d)\d{3}[\s.\-]\d{4}(?!\d)         # 7-digit local, 555-1234
     )(?![\w])
     """,
     re.VERBOSE | re.ASCII,
@@ -537,9 +556,6 @@ _PHONE_RE = re.compile(
 
 _DECIMAL_RE = re.compile(r"(?<!\d)(\d+)\.(\d+)(?!\d)", re.ASCII)
 _INTEGER_RE = re.compile(r"\d[\d,]*\d|\d", re.ASCII)
-
-
-# --- classification of a single field value ----------------------------------
 
 _VALUE_ZIP_RE = re.compile(r"\d{5}(?:-\d{4})?", re.ASCII)
 _VALUE_DECIMAL_RE = re.compile(r"\d+\.\d+", re.ASCII)
@@ -623,7 +639,9 @@ def number_to_words(value: str, kind: NumberType | None = None) -> str:
     """
     ensure_str(value, "value")
     if kind is None:
-        kind = classify(value)  # raises ValueError when there is no digit
+        # classify() enforces the has-digit check, so we don't repeat it
+        # here in the auto-detect path.
+        kind = classify(value)
     else:
         if not isinstance(kind, NumberType):
             raise TypeError(

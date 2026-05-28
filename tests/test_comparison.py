@@ -29,7 +29,6 @@ def test_clear_mismatch():
 
 
 def test_incomparable_lengths_return_none():
-    # Very different code lengths -> incomparable.
     assert match_rating_comparison("Al", "Alexandria") is None
 
 
@@ -46,7 +45,8 @@ def test_symmetry():
 
 
 def test_pipeline_with_numbers():
-    # Numbers must be expanded before comparison.
+    # The encoder refuses numerics, so the documented pipeline is to expand
+    # numbers first; this exercises that contract end to end.
     numeric_form = numbers_to_words("Route 66")
     spelled_form = numbers_to_words("Route sixty six")
     assert match_rating_comparison(numeric_form, spelled_form) is True
@@ -70,25 +70,26 @@ def test_match_rating_rejects_numeric_input():
 
 
 def test_comparison_warns_on_special_characters():
-    # The warning from the underlying encoder propagates through.
+    # The warning is part of the comparison contract too, not just the
+    # encoder's, so callers can detect dirty inputs at either entry point.
     with pytest.warns(SpecialCharacterWarning):
         match_rating_comparison("O'Brien", "OBrien")
 
 
-# --- minimum-rating thresholds (short codices) -------------------------------
-
 def test_short_names_high_threshold_match():
-    # Codices "AL"/"AL", length sum 4 -> minimum rating 5; identical -> match.
+    # Names chosen for codex sum 4 — the strictest threshold (>=5). A True
+    # result here verifies the high-threshold branch of _minimum_rating.
     assert match_rating_comparison("Al", "Ale") is True
 
 
 def test_short_names_high_threshold_non_match():
-    # Codices "AL"/"ED", sum 4 -> minimum rating 5; rating 4 -> no match.
+    # Same sum-4 threshold, but a rating of 4 must fail; pins the lower
+    # boundary of the strictest band.
     assert match_rating_comparison("Al", "Ed") is False
 
 
 def test_mid_length_threshold_match():
-    # Codices "SM"/"SMY", length sum 5 -> minimum rating 4; rating 5 -> match.
+    # Codices summing 5 land in the >=4 band; pins the middle threshold.
     assert match_rating_comparison("Sam", "Sammy") is True
 
 

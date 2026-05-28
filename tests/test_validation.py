@@ -11,8 +11,6 @@ from py_mra._validation import (
 )
 
 
-# --- happy paths return the value unchanged ----------------------------------
-
 def test_ensure_str_returns_value():
     assert ensure_str("hi", "label") == "hi"
 
@@ -35,8 +33,6 @@ def test_ensure_digits_returns_value(digits):
 def test_ensure_has_digit_returns_value(value):
     assert ensure_has_digit(value, "label") == value
 
-
-# --- wrong types raise TypeError ---------------------------------------------
 
 @pytest.mark.parametrize("bad", [5, None, b"x", ["x"]])
 def test_ensure_str_rejects_non_str(bad):
@@ -66,15 +62,11 @@ def test_ensure_has_digit_rejects_non_str():
         ensure_has_digit(123, "label")
 
 
-# --- a non-string label is itself rejected -----------------------------------
-
 @pytest.mark.parametrize("validator", [ensure_str, ensure_int, ensure_match])
 def test_validators_reject_non_string_label(validator):
     with pytest.raises(TypeError):
         validator("value", 123)
 
-
-# --- value-domain violations raise ValueError --------------------------------
 
 @pytest.mark.parametrize("bad", ["12a", "1 2", "½", "1.5"])
 def test_ensure_digits_rejects_non_digit_characters(bad):
