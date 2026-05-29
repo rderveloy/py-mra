@@ -25,6 +25,12 @@ checks rather than assuming any caller validated first.
 from __future__ import annotations
 
 import re
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    # Imported only for type hints; the runtime check inside ensure_codex
+    # imports lazily to avoid a circular import with codex.py at module load.
+    from .codex import Codex
 
 _DIGIT_CHARS = frozenset("0123456789")
 
@@ -137,5 +143,39 @@ def ensure_has_digit(value: object, label: str) -> str:
     if not any(char in _DIGIT_CHARS for char in value):
         raise ValueError(
             "%s must contain at least one digit, got %r" % (label, value)
+        )
+    return value
+
+
+def ensure_codex(value: object, label: str) -> "Codex":
+    """Return *value* unchanged if it is a :class:`py_mra.Codex` instance.
+
+    The shape invariants of a codex are enforced by :class:`Codex` itself at
+    construction; this validator only confirms that a function-boundary
+    argument is actually a ``Codex`` (not just a plain ``str`` that happens
+    to look codex-shaped). Callers who hold a plain string and want a codex
+    must opt in explicitly via ``Codex(value)`` or via
+    :func:`py_mra.match_rating_codex`.
+
+    Args:
+        value: The argument to validate.
+        label: The parameter name, used in the error message.
+
+    Returns:
+        *value*.
+
+    Raises:
+        TypeError: If *label* is not a ``str``, or *value* is not a
+            :class:`py_mra.Codex` instance.
+    """
+    if not isinstance(label, str):
+        raise TypeError("label must be a str, got %r" % type(label).__name__)
+    # Lazy import: codex.py imports from this module at top level, so a
+    # top-level import here would cycle. The function-local import is
+    # resolved on first call, by which point both modules are loaded.
+    from .codex import Codex
+    if not isinstance(value, Codex):
+        raise TypeError(
+            "%s must be a Codex, got %r" % (label, type(value).__name__)
         )
     return value

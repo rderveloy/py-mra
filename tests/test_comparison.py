@@ -13,16 +13,19 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import warnings
-
 import pytest
 
 from py_mra import (
+    Codex,
+    MultiWordInputError,
     NumericInputError,
     SpecialCharacterWarning,
+    comparison_from_codices,
     match_rating,
+    match_rating_codex,
     match_rating_comparison,
     numbers_to_words,
+    rating_from_codices,
 )
 from py_mra.comparison import _minimum_rating
 
@@ -60,11 +63,14 @@ def test_symmetry():
 
 
 def test_pipeline_with_numbers():
-    # The encoder refuses numerics, so the documented pipeline is to expand
-    # numbers first; this exercises that contract end to end.
-    numeric_form = numbers_to_words("Route 66")
-    spelled_form = numbers_to_words("Route sixty six")
-    assert match_rating_comparison(numeric_form, spelled_form) is True
+    # Expanding numbers produces multi-word output, so the documented
+    # pipeline is now numbers_to_words -> split into tokens -> encode each
+    # token. This exercises that per-token contract end to end.
+    numeric_tokens = numbers_to_words("Route 66").split()
+    spelled_tokens = numbers_to_words("Route sixty six").split()
+    assert numeric_tokens == spelled_tokens
+    for numeric_token, spelled_token in zip(numeric_tokens, spelled_tokens):
+        assert match_rating_comparison(numeric_token, spelled_token) is True
 
 
 def test_comparison_rejects_non_string():
@@ -75,13 +81,25 @@ def test_comparison_rejects_non_string():
 
 
 def test_comparison_rejects_numeric_input():
+    # Single-word numeric input so the test isolates NumericInputError
+    # rather than tripping the multi-word rejection first.
     with pytest.raises(NumericInputError):
-        match_rating_comparison("Route 66", "Route 66")
+        match_rating_comparison("Route66", "Route66")
 
 
 def test_match_rating_rejects_numeric_input():
     with pytest.raises(NumericInputError):
-        match_rating("Route 66", "Smith")
+        match_rating("Route66", "Smith")
+
+
+def test_comparison_rejects_multi_word_input():
+    with pytest.raises(MultiWordInputError):
+        match_rating_comparison("Mary Ann", "Mary Ann")
+
+
+def test_match_rating_rejects_multi_word_input():
+    with pytest.raises(MultiWordInputError):
+        match_rating("Mary Ann", "Smith")
 
 
 def test_comparison_warns_on_special_characters():
@@ -108,6 +126,13 @@ def test_mid_length_threshold_match():
     assert match_rating_comparison("Sam", "Sammy") is True
 
 
+def test_long_names_low_threshold():
+    # Codices summing >= 12 (both length-6) land in the lowest >=2 band;
+    # pins the deepest tier of _minimum_rating.
+    # "Christopher" -> CHRPHR (6) and "Kathryn" -> KTHRYN (6) sum to 12.
+    assert match_rating_comparison("Christopher", "Kathryn") is False
+
+
 def test_minimum_rating_rejects_negative():
     with pytest.raises(ValueError):
         _minimum_rating(-1)
@@ -116,3 +141,49 @@ def test_minimum_rating_rejects_negative():
 def test_minimum_rating_rejects_non_int():
     with pytest.raises(TypeError):
         _minimum_rating("5")
+
+
+# --- codex-taking batch path -------------------------------------------------
+
+def test_rating_from_codices_matches_name_path():
+    # The codex-taking path must produce identical results to the name-taking
+    # convenience path; this is the contract that lets users switch to the
+    # batch idiom without surprises.
+    codex1 = match_rating_codex("Smith")
+    codex2 = match_rating_codex("Smyth")
+    assert rating_from_codices(codex1, codex2) == match_rating(
+        "Smith", "Smyth"
+    )
+
+
+def test_comparison_from_codices_matches_name_path():
+    codex1 = match_rating_codex("Smith")
+    codex2 = match_rating_codex("Smyth")
+    assert comparison_from_codices(codex1, codex2) == (
+        match_rating_comparison("Smith", "Smyth")
+    )
+
+
+def test_rating_from_codices_incomparable_lengths_return_none():
+    codex1 = match_rating_codex("Al")
+    codex2 = match_rating_codex("Alexandria")
+    assert rating_from_codices(codex1, codex2) is None
+
+
+def test_comparison_from_codices_incomparable_lengths_return_none():
+    codex1 = match_rating_codex("Al")
+    codex2 = match_rating_codex("Alexandria")
+    assert comparison_from_codices(codex1, codex2) is None
+
+
+def test_rating_from_codices_rejects_plain_str():
+    # A plain str "SMTH" happens to be codex-shaped but isn't a Codex
+    # instance; the boundary check protects callers from accidentally
+    # passing names where codices are expected.
+    with pytest.raises(TypeError):
+        rating_from_codices("SMTH", "SMYTH")
+
+
+def test_comparison_from_codices_rejects_plain_str():
+    with pytest.raises(TypeError):
+        comparison_from_codices("SMTH", "SMYTH")

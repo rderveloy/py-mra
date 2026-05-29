@@ -17,19 +17,31 @@
 
 
 class NumericInputError(ValueError):
-    """Raised when a name passed to the encoder contains numeric characters.
+    """Raised when a word passed to the encoder contains numeric characters.
 
-    The Match Rating Approach is defined for alphabetic names. Digits have no
+    The Match Rating Approach is defined for alphabetic words. Digits have no
     phonetic encoding, so the encoder refuses them rather than silently
     producing a meaningless code. Convert numbers to words first with
-    :func:`py_mra.numbers.numbers_to_words`.
+    :func:`py_mra.numbers.numbers_to_words`, then tokenize.
+    """
+
+
+class MultiWordInputError(ValueError):
+    """Raised when a word passed to the encoder contains internal whitespace.
+
+    The Match Rating Approach is defined for single words; concatenating
+    multiple words and treating the result as one name produces a codex that
+    no longer reflects the algorithm's design. The encoder refuses such input
+    rather than silently producing a misleading code. Split the input with
+    :func:`py_mra.tokenize` (or with your own logic) and call the encoder on
+    each token separately.
     """
 
 
 class SpecialCharacterWarning(UserWarning):
-    """Warned when non-letter characters are stripped from a name.
+    """Warned when non-letter characters are stripped from a word.
 
-    Whitespace is normalized silently; this warning fires only for punctuation
-    or symbols (e.g. the apostrophe in ``O'Brien``) so callers can detect dirty
-    input without being spammed by ordinary multi-word names.
+    This warning fires only for punctuation or symbols (non-exhaustive
+    example: the apostrophe in ``O'Brien``) so callers can detect dirty input
+    without being spammed by routine cleanup.
     """
