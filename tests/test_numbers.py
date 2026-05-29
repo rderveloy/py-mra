@@ -57,11 +57,21 @@ def test_int_to_cardinal(number, expected):
 
 
 def test_plain_integer_is_cardinal():
-    assert numbers_to_words("Route 66") == "Route sixty six"
+    # A pure-digit token with no designator context and no adjacent letters
+    # reads as a cardinal — that's the documented default for quantities.
+    assert numbers_to_words("I read 66 pages") == "I read sixty six pages"
 
 
 def test_thousands_separator():
     assert numbers_to_words("pop 1,000,000") == "pop one million"
+
+
+def test_route_designator_reads_digit_by_digit():
+    # "Route" is a designator-before, so the following number is an
+    # identifier — read digit by digit, matching how people say it.
+    assert numbers_to_words("Route 66") == "Route six six"
+    assert numbers_to_words("Highway 401") == "Highway four zero one"
+    assert numbers_to_words("Interstate 95") == "Interstate nine five"
 
 
 def test_decimal():
@@ -102,8 +112,26 @@ def test_international_phone_prefixes_plus():
     assert spoken.startswith("plus one five five five")
 
 
-def test_letters_preserved_around_numbers():
-    assert numbers_to_words("221B") == "two hundred twenty one B"
+def test_alphanumeric_token_reads_digit_by_digit():
+    # An alphanumeric token with no internal whitespace is an identifier,
+    # not a quantity — read digit by digit, with letters kept.
+    assert numbers_to_words("221B") == "two two one B"
+    assert numbers_to_words("4G phone") == "four G phone"
+    assert numbers_to_words("Model T5") == "Model T five"
+
+
+def test_currency_pads_when_adjacent_to_letters():
+    # "$5" inside "Pay$5B" is caught by the currency pass (not the
+    # alphanumeric one); the replacement must add boundary spaces so the
+    # spoken form doesn't fuse with the surrounding letters.
+    assert numbers_to_words("Pay$5B") == "Pay five dollars B"
+
+
+def test_zip_pads_when_preceded_by_letters():
+    # The zip pass matches "12345" inside "abc12345" because its lookbehind
+    # only guards against adjacent digits, not letters; _pad inserts the
+    # boundary space so the digits don't collide with the preceding word.
+    assert numbers_to_words("abc12345") == "abc one two three four five"
 
 
 def test_no_numbers_passthrough():
@@ -140,12 +168,27 @@ def test_unit_designators_digit_by_digit(field, expected):
     assert numbers_to_words(field) == expected
 
 
-def test_house_number_stays_cardinal():
-    # Without a designator label, the leading number is a quantity (house
-    # number), not an identifier; cardinal preserves that distinction.
+def test_house_number_with_street_designator_reads_digit_by_digit():
+    # A pure-digit token followed (within a short window) by a street
+    # designator is a house number — read digit by digit, the way people
+    # actually say addresses.
     assert numbers_to_words("221 Baker Street") == (
-        "two hundred twenty one Baker Street"
+        "two two one Baker Street"
     )
+
+
+@pytest.mark.parametrize(
+    "address, expected",
+    [
+        ("221 St", "two two one St"),
+        ("221 Main St", "two two one Main St"),
+        ("221 N Main St", "two two one N Main St"),
+        ("1600 Pennsylvania Ave", "one six zero zero Pennsylvania Ave"),
+        ("42 Wallaby Way", "four two Wallaby Way"),
+    ],
+)
+def test_street_designators_after_number(address, expected):
+    assert numbers_to_words(address) == expected
 
 
 def test_full_address_line():
@@ -153,7 +196,9 @@ def test_full_address_line():
     # must apply the right rule to each run rather than blanket-converting.
     address = "221B Baker St Apt 5, London SW1A 1AA"
     spoken = numbers_to_words(address)
-    assert "two hundred twenty one B" in spoken
+    # 221B is alphanumeric -> digit-by-digit identifier.
+    assert "two two one B" in spoken
+    # Apt 5 has a designator-before -> digit-by-digit identifier.
     assert "Apt five" in spoken
     # Digit-free output is the whole point — it's the encoder's prerequisite.
     assert not any(char.isdigit() for char in spoken)

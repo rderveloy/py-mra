@@ -71,6 +71,7 @@ from .numbers import (
     number_to_words,
     numbers_to_words,
 )
+from .tokenize import tokenize
 
 __version__ = "0.1.0"
 
@@ -86,6 +87,7 @@ __all__ = [
     "classify",
     "NumberType",
     "int_to_cardinal",
+    "tokenize",
     "NumericInputError",
     "MultiWordInputError",
     "SpecialCharacterWarning",

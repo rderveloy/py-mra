@@ -529,6 +529,35 @@ def _integer_repl(match: re.Match) -> str:
     return _pad(match, _say_cardinal(match.group(0)))
 
 
+def _street_after_repl(match: re.Match) -> str:
+    """Replace a matched ``<number> ... <street-designator>`` span.
+
+    The number is read digit by digit; the optional intervening street name
+    and the designator itself are preserved verbatim.
+
+    Raises:
+        TypeError: If *match* is not a :class:`re.Match`.
+    """
+    ensure_match(match, "match")
+    number_words = _digits_to_words(match.group("number"))
+    rest = match.group("rest")
+    designator = match.group("designator")
+    return _pad(match, "%s%s %s" % (number_words, rest, designator))
+
+
+def _alphanum_repl(match: re.Match) -> str:
+    """Replace a matched mixed alphanumeric token.
+
+    The token is read out with digits spoken singly and letters preserved,
+    via :func:`_spell_identifier`.
+
+    Raises:
+        TypeError: If *match* is not a :class:`re.Match`.
+    """
+    ensure_match(match, "match")
+    return _pad(match, _spell_identifier(match.group(0)))
+
+
 _CURRENCY_RE = re.compile(
     r"(?P<sym>[$£€])\s?"
     # Requiring a comma in the grouped form is what prevents a plain
@@ -542,11 +571,51 @@ _CURRENCY_RE = re.compile(
 # Match a designator label plus an alphanumeric identifier (containing at
 # least one digit). Reading those digits singly is what lets mixed forms
 # like "4B" decompose cleanly into letters we keep and digits we spell.
+# Route/Highway/Interstate are designators-before too: "Route 66" should
+# read as identifier digits, matching how "Apt 5" and "Box 88" already do.
 _UNIT_RE = re.compile(
     r"(?P<desig>#|\b(?:apartment|apt|unit|suite|ste|building|bldg|floor|fl|"
-    r"room|rm|lot|space|spc|dept|trailer|trlr|box|number|no)\b\.?)\s*"
+    r"room|rm|lot|space|spc|dept|trailer|trlr|box|number|no|route|hwy|"
+    r"highway|interstate)\b\.?)\s*"
     r"(?P<id>[0-9A-Za-z]*[0-9][0-9A-Za-z]*)",
     re.IGNORECASE | re.ASCII,
+)
+
+# Street designators that follow the number in an address ("221 Baker St").
+# A house number sitting in front of one of these reads digit by digit,
+# because that's how people actually say addresses — "two-two-one Baker
+# Street," never "two hundred twenty-one Baker Street."
+_STREET_DESIGNATORS = (
+    "st", "street", "ave", "avenue", "rd", "road",
+    "blvd", "boulevard", "ln", "lane", "way",
+    "ct", "court", "pl", "place", "dr", "drive",
+    "cir", "circle", "pkwy", "parkway", "hwy", "highway",
+    "trl", "trail", "aly", "alley", "sq", "square",
+    "ter", "terrace", "fwy", "freeway", "tpke", "turnpike",
+)
+
+# Match a pure-digit token followed by 0-3 word tokens and then a street
+# designator. The 0-3 window is what lets "221 Baker St" and "221 N Main
+# St" both trigger without false-positive on prose like "He read 5 books
+# yesterday at the Way" (which would need more than 3 intervening words).
+_STREET_AFTER_RE = re.compile(
+    r"\b(?P<number>\d+)"
+    r"(?P<rest>(?:[\s.,]+[A-Za-z][A-Za-z.]*){0,3})"
+    r"[\s.,]+(?P<designator>(?:"
+    + r"|".join(_STREET_DESIGNATORS)
+    + r"))\b\.?",
+    re.IGNORECASE | re.ASCII,
+)
+
+# Mixed alphanumeric token (at least one digit, at least one letter, no
+# internal whitespace). Reading the digits singly while keeping the letters
+# is how people speak alphanumeric identifiers like "221B" or "4G".
+_ALPHANUM_RE = re.compile(
+    r"\b"
+    r"(?=[0-9A-Za-z]*[0-9])(?=[0-9A-Za-z]*[A-Za-z])"
+    r"[0-9A-Za-z]+"
+    r"\b",
+    re.ASCII,
 )
 
 # Isolated five-digit run (or zip+4). Anchoring with lookarounds is what
@@ -735,6 +804,8 @@ def numbers_to_words(text: str, kind: NumberType | None = None) -> str:
     text = _UNIT_RE.sub(_unit_repl, text)
     text = _PHONE_RE.sub(_phone_repl, text)
     text = _ZIP_RE.sub(_zip_repl, text)
+    text = _STREET_AFTER_RE.sub(_street_after_repl, text)
     text = _DECIMAL_RE.sub(_decimal_repl, text)
+    text = _ALPHANUM_RE.sub(_alphanum_repl, text)
     text = _INTEGER_RE.sub(_integer_repl, text)
     return text

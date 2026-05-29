@@ -65,9 +65,12 @@ def test_symmetry():
 def test_pipeline_with_numbers():
     # Expanding numbers produces multi-word output, so the documented
     # pipeline is now numbers_to_words -> split into tokens -> encode each
-    # token. This exercises that per-token contract end to end.
-    numeric_tokens = numbers_to_words("Route 66").split()
-    spelled_tokens = numbers_to_words("Route sixty six").split()
+    # token. This exercises that per-token contract end to end on a value
+    # that naturally splits into multiple tokens after expansion.
+    numeric_tokens = numbers_to_words("I owe $19.99").split()
+    spelled_tokens = numbers_to_words(
+        "I owe nineteen dollars and ninety nine cents"
+    ).split()
     assert numeric_tokens == spelled_tokens
     for numeric_token, spelled_token in zip(numeric_tokens, spelled_tokens):
         assert match_rating_comparison(numeric_token, spelled_token) is True
