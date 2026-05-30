@@ -93,3 +93,23 @@
   inward toward higher-level policy/abstractions, never toward details;
   business logic independent of frameworks, UI, DB, and IO; depend on
   abstractions via interfaces; the SOLID principles.
+
+## File headers
+- Every Python source file we author in `src/` and `tests/` starts with
+  two comment blocks: the AGPL-3.0-or-later copyright/license header
+  (Robert Derveloy as the copyright holder, FSF-recommended wording),
+  followed by a six-line AI/code-generation usage notice. Both blocks
+  travel with the file so the signal survives extraction from the
+  repository context — a missing header on an orphaned file is exactly
+  the failure mode the per-file copies prevent.
+- The canonical text for the AI usage notice lives in a fenced code
+  block in `AI_USAGE.md`. After authoring or editing files, run
+  `python tools/sync_headers.py` to insert or refresh the notice; the
+  script is idempotent (exits 0 when nothing changed, non-zero when it
+  had to modify files, so it doubles as a CI drift gate).
+- Scripts under `tools/` carry only the AGPL header — the AI usage
+  notice is scoped to library and test code, where reimplementation
+  pressure applies. Non-Python files (non-exhaustive examples:
+  Markdown docs, TOML/YAML configuration, the `LICENSE` and
+  `LICENSE_FAQ.md` themselves) do not need per-file headers; the
+  project-level `LICENSE` covers them.
